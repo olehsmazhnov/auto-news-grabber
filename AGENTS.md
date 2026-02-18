@@ -62,3 +62,8 @@ AI Rules for this project:
 - For mixed feeds (for example general news portals), ingest only automotive-relevant items.
 - Run a title+URL relevance check before translation/publication.
 - If an item is not automotive-relevant, skip it (do not publish and do not backfill photos for it).
+
+9. Contact data sanitization:
+- Remove personal media-contact details from visible article `content` before saving/publishing.
+- Strip direct emails, direct phone numbers, and adjacent contact person name lines (for example press contact blocks).
+- Keep company/public info URLs when they are part of factual article content.

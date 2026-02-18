@@ -50,7 +50,18 @@ foreach ($item in $items) {
 }
 "photo_text_mismatch_items=" + $mismatch
 ```
-10. Quick mixed-source relevance check (heuristic, latest run):
+10. Quick contact-leak check (latest run content must not contain direct emails/phones):
+```powershell
+$run = (Get-Content data/latest_run.json -Raw | ConvertFrom-Json).run_path
+$items = Get-Content "$run/news.json" -Raw | ConvertFrom-Json
+$leaks = $items | Where-Object {
+  $c = "$($_.content)"
+  $c -match '[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}' -or $c -match '(\\+?\\d[\\d\\s().-]{6,}\\d)'
+}
+"contact_leak_items=" + @($leaks).Count
+$leaks | Select-Object source_id,title,url
+```
+11. Quick mixed-source relevance check (heuristic, latest run):
 ```powershell
 $run = (Get-Content data/latest_run.json -Raw | ConvertFrom-Json).run_path
 $items = Get-Content "$run/news.json" -Raw | ConvertFrom-Json
@@ -62,7 +73,7 @@ $suspect = $mixed | Where-Object {
 "mixed_source_suspect_items=" + @($suspect).Count
 $suspect | Select-Object source_id,title,url
 ```
-11. Snapshot sync check after backfill:
+12. Snapshot sync check after backfill:
 ```powershell
 $run = (Get-Content data/latest_run.json -Raw | ConvertFrom-Json).run_path
 $latest = Get-Content data/news.json -Raw | ConvertFrom-Json
@@ -78,14 +89,14 @@ foreach ($x in $latest) {
 }
 "snapshot_sync_mismatch_items=" + $mismatch
 ```
-12. Optional watermark hint check (latest run):
+13. Optional watermark hint check (latest run):
 ```powershell
 $run = (Get-Content data/latest_run.json -Raw | ConvertFrom-Json).run_path
 $items = Get-Content "$run/news.json" -Raw | ConvertFrom-Json
 $wm = $items | ForEach-Object { $_.photos } | Where-Object { $_.source_url -match 'watermark' -or $_.attribution_url -match 'watermark' }
 "watermark_hints=" + @($wm).Count
 ```
-13. If duplicates/context/relevance/sync issues appear, rerun scrape after source tuning:
+14. If duplicates/context/relevance/sync issues appear, rerun scrape after source tuning:
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/run_daily.ps1
 ```
