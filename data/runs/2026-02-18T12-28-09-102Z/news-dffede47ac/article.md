@@ -1,0 +1,34 @@
+# Сніг, дощі та температурні стрибки: Діденко розповіла, коли потеплішає в Україні
+
+- source: Focus
+- url: https://focus.ua/uk/ukraine/744369-pogoda-v-ukrajini-prognoz-na-19-lyutogo-vid-nataliji-didenko
+- published_date: 2026-02-18
+- published_time: 12:24:02
+- published_at: 2026-02-18T12:24:02.000Z
+- scraped_at: 2026-02-18T12:28:09.102Z
+- rights_flag: quote_only
+- license_text: Quote-only source. Publish original summary with attribution and source link.
+
+## Content
+
+19 лютого в Україні ще збережеться прохолодна погода, місцями з опадами в першій половині дня. Плюсова температура очікується тільки на півдні, прогнозує синоптикиня Наталка Діденко. На півночі країни, у низці центральних областей і навіть в Одеській області найближчої ночі температура повітря опуститься до -9 -12 градусів. На решті території України очікуються морози від -4 -9 градусів, на півдні та Закарпатті — близько нуля. Вдень максимальна температура повітря становитиме в Україні -2 -5 градусів. У серверних регіонах вона може опуститися до -7 градусів.
+
+Джерело: https://focus.ua/uk/ukraine/744369-pogoda-v-ukrajini-prognoz-na-19-lyutogo-vid-nataliji-didenko
+
+## Photos
+
+### Photo 1
+- provider: wikimedia
+- source_url: https://upload.wikimedia.org/wikipedia/commons/thumb/1/1e/GAZ-27527_lifeguard_vehicle%2C_Ukraine.jpg/1280px-GAZ-27527_lifeguard_vehicle%2C_Ukraine.jpg
+- local_path: data/runs/2026-02-18T12-28-09-102Z/news-dffede47ac/images/photo-1.jpg
+- license: CC BY-SA 4.0
+- credit: Zinnsoldat
+- attribution_url: https://commons.wikimedia.org/wiki/File:GAZ-27527_lifeguard_vehicle,_Ukraine.jpg
+
+### Photo 2
+- provider: wikimedia
+- source_url: https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/Electric_vehicle_charging_stations_in_Chernihiv%2C_Ukraine_02.jpg/1280px-Electric_vehicle_charging_stations_in_Chernihiv%2C_Ukraine_02.jpg
+- local_path: data/runs/2026-02-18T12-28-09-102Z/news-dffede47ac/images/photo-2.jpg
+- license: CC BY-SA 4.0
+- credit: Nickispeaki
+- attribution_url: https://commons.wikimedia.org/wiki/File:Electric_vehicle_charging_stations_in_Chernihiv,_Ukraine_02.jpg

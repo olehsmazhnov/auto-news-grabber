@@ -1,0 +1,147 @@
+﻿{
+  "sources": [
+    {
+      "id": "S01",
+      "name": "Toyota Global Newsroom",
+      "source": "Toyota Global",
+      "url": "https://global.toyota/en/newsroom/",
+      "feed_url": "https://global.toyota/en/rss.xml",
+      "enabled": true,
+      "max_items": 4,
+      "rights_flag": "official_press",
+      "license_text": "Use factual information with attribution. Check media asset usage terms before publishing photos."
+    },
+    {
+      "id": "S07",
+      "name": "Stellantis Press Releases",
+      "source": "Stellantis",
+      "url": "https://www.stellantis.com/en/news/press-releases",
+      "feed_url": "https://www.stellantis.com/en/news/press-releases.rss.xml",
+      "enabled": true,
+      "max_items": 4,
+      "rights_flag": "official_press",
+      "license_text": "Use factual information with attribution. Check media asset usage terms before publishing photos."
+    },
+    {
+      "id": "S11",
+      "name": "Kia America Newsroom RSS",
+      "source": "Kia US",
+      "url": "https://www.kiamedia.com/us/en/news",
+      "feed_url": "https://www.kiamedia.com/us/en/feed",
+      "enabled": true,
+      "max_items": 4,
+      "rights_flag": "official_press",
+      "license_text": "Use factual information with attribution. Check media asset usage terms before publishing photos."
+    },
+    {
+      "id": "S36",
+      "name": "Autocar RSS",
+      "source": "Autocar",
+      "url": "https://www.autocar.co.uk/",
+      "feed_url": "https://www.autocar.co.uk/rss",
+      "enabled": true,
+      "max_items": 4,
+      "rights_flag": "quote_only",
+      "license_text": "Quote-only source. Publish original summary with attribution and source link."
+    },
+    {
+      "id": "S37",
+      "name": "Auto Express Car News",
+      "source": "Auto Express",
+      "url": "https://www.autoexpress.co.uk/",
+      "feed_url": "https://www.autoexpress.co.uk/rss.xml",
+      "enabled": true,
+      "max_items": 4,
+      "rights_flag": "quote_only",
+      "license_text": "Quote-only source. Publish original summary with attribution and source link."
+    },
+    {
+      "id": "S38",
+      "name": "Motor1 Global News",
+      "source": "Motor1",
+      "url": "https://www.motor1.com/news/",
+      "feed_url": "https://www.motor1.com/rss/news/all/",
+      "enabled": true,
+      "max_items": 4,
+      "rights_flag": "quote_only",
+      "license_text": "Quote-only source. Publish original summary with attribution and source link."
+    },
+    {
+      "id": "S39",
+      "name": "Car and Driver News",
+      "source": "Car and Driver",
+      "url": "https://www.caranddriver.com/news/",
+      "feed_url": "https://www.caranddriver.com/rss/all.xml/",
+      "enabled": true,
+      "max_items": 4,
+      "rights_flag": "quote_only",
+      "license_text": "Quote-only source. Publish original summary with attribution and source link."
+    },
+    {
+      "id": "S41",
+      "name": "Jalopnik RSS",
+      "source": "Jalopnik",
+      "url": "https://jalopnik.com/",
+      "feed_url": "https://jalopnik.com/rss",
+      "enabled": true,
+      "max_items": 4,
+      "rights_flag": "quote_only",
+      "license_text": "Quote-only source. Publish original summary with attribution and source link."
+    },
+    {
+      "id": "S42",
+      "name": "Autocar India RSS",
+      "source": "Autocar India",
+      "url": "https://www.autocarindia.com/",
+      "feed_url": "https://www.autocarindia.com/RSS/rssfeed",
+      "enabled": true,
+      "max_items": 4,
+      "rights_flag": "quote_only",
+      "license_text": "Quote-only source. Publish original summary with attribution and source link."
+    },
+    {
+      "id": "S43",
+      "name": "Carscoops RSS",
+      "source": "Carscoops",
+      "url": "https://www.carscoops.com/",
+      "feed_url": "https://www.carscoops.com/feed/",
+      "enabled": true,
+      "max_items": 4,
+      "rights_flag": "quote_only",
+      "license_text": "Quote-only source. Publish original summary with attribution and source link."
+    },
+    {
+      "id": "S44",
+      "name": "Electrek RSS",
+      "source": "Electrek",
+      "url": "https://electrek.co/",
+      "feed_url": "https://electrek.co/feed/",
+      "enabled": true,
+      "max_items": 4,
+      "rights_flag": "quote_only",
+      "license_text": "Quote-only source. Publish original summary with attribution and source link."
+    },
+    {
+      "id": "S45",
+      "name": "Focus RSS",
+      "source": "Focus",
+      "url": "https://focus.ua/",
+      "feed_url": "https://focus.ua/uk/modules/rss.php",
+      "enabled": true,
+      "max_items": 4,
+      "rights_flag": "quote_only",
+      "license_text": "Quote-only source. Publish original summary with attribution and source link."
+    },
+    {
+      "id": "S47",
+      "name": "Auto Motor und Sport RSS",
+      "source": "Auto Motor und Sport",
+      "url": "https://www.auto-motor-und-sport.de/",
+      "feed_url": "https://www.auto-motor-und-sport.de/rss/alle/",
+      "enabled": true,
+      "max_items": 4,
+      "rights_flag": "quote_only",
+      "license_text": "Quote-only source. Publish original summary with attribution and source link."
+    }
+  ]
+}

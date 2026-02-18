@@ -1,0 +1,133 @@
+{
+  "generated_at": "2026-02-18T12:28:09.102Z",
+  "days": [
+    {
+      "date": "2026-02-18",
+      "run_count": 1,
+      "items_saved": 40,
+      "resource_checks": {
+        "total_resources": 14,
+        "ok_resources": 10,
+        "empty_resources": 0,
+        "failed_resources": 4
+      },
+      "failed_resources": [
+        {
+          "source_id": "S37",
+          "source_name": "Auto Express Car News",
+          "source": "Auto Express",
+          "ok_runs": 0,
+          "empty_runs": 0,
+          "failed_runs": 1
+        },
+        {
+          "source_id": "S42",
+          "source_name": "Autocar India RSS",
+          "source": "Autocar India",
+          "ok_runs": 0,
+          "empty_runs": 0,
+          "failed_runs": 1
+        },
+        {
+          "source_id": "S11",
+          "source_name": "Kia America Newsroom RSS",
+          "source": "Kia US",
+          "ok_runs": 0,
+          "empty_runs": 0,
+          "failed_runs": 1
+        },
+        {
+          "source_id": "S01",
+          "source_name": "Toyota Global Newsroom",
+          "source": "Toyota Global",
+          "ok_runs": 0,
+          "empty_runs": 0,
+          "failed_runs": 1
+        }
+      ],
+      "good_resources": [
+        {
+          "source_id": "S47",
+          "source_name": "Auto Motor und Sport RSS",
+          "source": "Auto Motor und Sport",
+          "ok_runs": 1,
+          "empty_runs": 0,
+          "failed_runs": 0
+        },
+        {
+          "source_id": "S36",
+          "source_name": "Autocar RSS",
+          "source": "Autocar",
+          "ok_runs": 1,
+          "empty_runs": 0,
+          "failed_runs": 0
+        },
+        {
+          "source_id": "S39",
+          "source_name": "Car and Driver News",
+          "source": "Car and Driver",
+          "ok_runs": 1,
+          "empty_runs": 0,
+          "failed_runs": 0
+        },
+        {
+          "source_id": "S43",
+          "source_name": "Carscoops RSS",
+          "source": "Carscoops",
+          "ok_runs": 1,
+          "empty_runs": 0,
+          "failed_runs": 0
+        },
+        {
+          "source_id": "S44",
+          "source_name": "Electrek RSS",
+          "source": "Electrek",
+          "ok_runs": 1,
+          "empty_runs": 0,
+          "failed_runs": 0
+        },
+        {
+          "source_id": "S45",
+          "source_name": "Focus RSS",
+          "source": "Focus",
+          "ok_runs": 1,
+          "empty_runs": 0,
+          "failed_runs": 0
+        },
+        {
+          "source_id": "S46",
+          "source_name": "ITC.ua Auto RSS",
+          "source": "ITC.ua",
+          "ok_runs": 1,
+          "empty_runs": 0,
+          "failed_runs": 0
+        },
+        {
+          "source_id": "S41",
+          "source_name": "Jalopnik RSS",
+          "source": "Jalopnik",
+          "ok_runs": 1,
+          "empty_runs": 0,
+          "failed_runs": 0
+        },
+        {
+          "source_id": "S38",
+          "source_name": "Motor1 Global News",
+          "source": "Motor1",
+          "ok_runs": 1,
+          "empty_runs": 0,
+          "failed_runs": 0
+        },
+        {
+          "source_id": "S07",
+          "source_name": "Stellantis Press Releases",
+          "source": "Stellantis",
+          "ok_runs": 1,
+          "empty_runs": 0,
+          "failed_runs": 0
+        }
+      ],
+      "flaky_resources": []
+    }
+  ]
+}

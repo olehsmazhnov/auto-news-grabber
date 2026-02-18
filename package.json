@@ -1,0 +1,35 @@
+﻿{
+  "name": "auto-news-grabber",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Daily auto news scraping, translation to Ukrainian, and React viewer",
+  "type": "module",
+  "scripts": {
+    "build:backend": "tsc -p tsconfig.json",
+    "build:backend:watch": "tsc -p tsconfig.json --watch --preserveWatchOutput",
+    "build:viewer": "esbuild viewer/src/app.tsx --bundle --platform=browser --format=esm --target=es2020 --minify --outfile=dist/viewer/app.js",
+    "build:viewer:watch": "esbuild viewer/src/app.tsx --bundle --platform=browser --format=esm --target=es2020 --outfile=dist/viewer/app.js --watch",
+    "build": "npm run build:backend && npm run build:viewer",
+    "scrape": "npm run build:backend --silent && node dist/scrape_news.js --config backend/sources.json --output data/news.json --target-language uk --verbose",
+    "scrape:no-translate": "npm run build:backend --silent && node dist/scrape_news.js --config backend/sources.json --output data/news.json --target-language uk --disable-translation --verbose",
+    "start": "npm run build --silent && node dist/server.js",
+    "start:watch": "node --watch dist/server.js",
+    "viewer:dev": "npm run build --silent && concurrently -k -n backend,viewer,server -c yellow,cyan,green \"npm:build:backend:watch\" \"npm:build:viewer:watch\" \"npm:start:watch\"",
+    "typecheck": "npm run build:backend --silent && tsc -p viewer/tsconfig.json --noEmit",
+    "daily": "powershell -ExecutionPolicy Bypass -File scripts/run_daily.ps1"
+  },
+  "dependencies": {
+    "cheerio": "^1.1.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "rss-parser": "^3.13.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.3",
+    "@types/react": "^18.3.24",
+    "@types/react-dom": "^18.3.7",
+    "concurrently": "^9.1.2",
+    "esbuild": "^0.25.10",
+    "typescript": "^5.9.2"
+  }
+}

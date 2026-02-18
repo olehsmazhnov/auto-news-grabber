@@ -1,0 +1,26 @@
+# Мабуть, навіть літаки не застраховані від заміни двигуна LS
+
+- source: Jalopnik
+- url: https://www.jalopnik.com/2100652/chevy-ls-engine-aircraft-swap/
+- published_date: 2026-02-18
+- published_time: 02:25:00
+- published_at: 2026-02-18T02:25:00.000Z
+- scraped_at: 2026-02-18T12:28:09.102Z
+- rights_flag: quote_only
+- license_text: Quote-only source. Publish original summary with attribution and source link.
+
+## Content
+
+Ви можете LS замінити майже все. Ентузіасти встановлюють один із двигунів General LS практично в усі види автомобілів, які тільки можна придумати: Volkswagen Beetles, старі Porsche, DeLorean і все, що між ними. Якщо там є місце для розміщення двигуна, є хороший шанс, що хтось поставить туди LS. Очевидно, деякі авіаційні ентузіасти навіть замінюють літаки LS, і це не тільки може працювати, це звучить чудово, коли це так. Зараз, звичайно, впустити LS V8 у літак трохи складніше, ніж зробити це, скажімо, у Miata, тим більше, що ви навіть можете купити Miata, які вже були замінені на LS. Літаки та автомобілі мають дуже різні вимоги до двигунів, тому потрібні дуже специфічні модифікації, щоб змусити шматок маленького блоку американської м’язи нести вас у небі.
+
+Джерело: https://www.jalopnik.com/2100652/chevy-ls-engine-aircraft-swap/
+
+## Photos
+
+### Photo 1
+- provider: wikimedia
+- source_url: https://upload.wikimedia.org/wikipedia/commons/thumb/b/bd/Chevy_Pickup_1956.jpg/1280px-Chevy_Pickup_1956.jpg
+- local_path: data/runs/2026-02-18T12-28-09-102Z/ls-d0dd53fbf0/images/photo-1.jpg
+- license: CC BY-SA 4.0
+- credit: Palauenc05
+- attribution_url: https://commons.wikimedia.org/wiki/File:Chevy_Pickup_1956.jpg

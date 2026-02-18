@@ -1,0 +1,34 @@
+# 24 долари за галон? Нафтова криза на Кубі досягає мети, оскільки Трамп посилює тиск
+
+- source: Carscoops
+- url: https://www.carscoops.com/2026/02/cuba-fuel-shortage-rationing/
+- published_date: 2026-02-18
+- published_time: 01:33:00
+- published_at: 2026-02-18T01:33:00.000Z
+- scraped_at: 2026-02-18T12:28:09.102Z
+- rights_flag: quote_only
+- license_text: Quote-only source. Publish original summary with attribution and source link.
+
+## Content
+
+Через дефіцит газу водіям доводиться довго чекати або дороге паливо на чорному ринку Водії на Кубі стикалися з незліченними проблемами протягом багатьох років, але нафтова блокада Сполучених Штатів може бути однією з найгірших. Оскільки постачання фактично припинено, водії, як повідомляється, чекають кілька місяців, щоб отримати газ. Як повідомляє Associated Press, кубинський уряд запровадив обмеження та змусив водіїв завантажувати додаток, щоб отримати пальне. На жаль для багатьох, найближчі зустрічі — «через кілька тижнів або місяців». Докладніше: Трамп погрожує критичним мостом для автомобільної промисловості через невдоволення Канадою. Видання поспілкувалося з однією людиною, яка сказала, що у них записаний номер «сім тисяч з чимось» на АЗС у Гавані.
+
+Джерело: https://www.carscoops.com/2026/02/cuba-fuel-shortage-rationing/
+
+## Photos
+
+### Photo 1
+- provider: wikimedia
+- source_url: https://upload.wikimedia.org/wikipedia/commons/thumb/b/bb/Cuba_license_plate_2002_private_vehicle_Havana.jpg/1280px-Cuba_license_plate_2002_private_vehicle_Havana.jpg
+- local_path: data/runs/2026-02-18T12-28-09-102Z/24-dd4987986e/images/photo-1.jpg
+- license: CC BY 3.0
+- credit: Krokodyl
+- attribution_url: https://commons.wikimedia.org/wiki/File:Cuba_license_plate_2002_private_vehicle_Havana.jpg
+
+### Photo 2
+- provider: wikimedia
+- source_url: https://upload.wikimedia.org/wikipedia/commons/thumb/8/8f/License_plate_of_Cuba_2002_private_vehicle_Holgu%C3%ADn_ODF_766.jpg/1280px-License_plate_of_Cuba_2002_private_vehicle_Holgu%C3%ADn_ODF_766.jpg
+- local_path: data/runs/2026-02-18T12-28-09-102Z/24-dd4987986e/images/photo-2.jpg
+- license: CC BY-SA 3.0
+- credit: Dickelbers
+- attribution_url: https://commons.wikimedia.org/wiki/File:License_plate_of_Cuba_2002_private_vehicle_Holgu%C3%ADn_ODF_766.jpg

@@ -1,0 +1,26 @@
+# Ціна на сиру нафту більше не є рушієм ціни на пальне: 7 причин, чому ціна на пальне така висока
+
+- source: Auto Motor und Sport
+- url: https://www.auto-motor-und-sport.de/verkehr/rohoel-preis-kaum-noch-spritpreis-treiber-7-gruende-warum-der-spritpreis-so-hoch-ist/
+- published_date: 2026-02-18
+- published_time: 12:02:00
+- published_at: 2026-02-18T12:02:00.000Z
+- scraped_at: 2026-02-18T12:28:09.102Z
+- rights_flag: quote_only
+- license_text: Quote-only source. Publish original summary with attribution and source link.
+
+## Content
+
+Бензин і дизельне паливо на АЗС подорожчали з початку року. Але які причини подорожчання? Національна середньодобова ціна на Super E10 на початку лютого 2026 року становила близько 1,75 євро за літр, дизель — близько 1,73 євро. Обидва значення вище рівня січня і знаменують подальше зростання цін на початку року. Очевидно, що ціна на сиру нафту в першу чергу відповідає за такий розвиток подій. Зрештою, просте рівняння було вірним протягом багатьох років: якщо ціна на нафту зростає, ціна на паливо також зростає.
+
+Джерело: https://www.auto-motor-und-sport.de/verkehr/rohoel-preis-kaum-noch-spritpreis-treiber-7-gruende-warum-der-spritpreis-so-hoch-ist/
+
+## Photos
+
+### Photo 1
+- provider: wikimedia
+- source_url: https://upload.wikimedia.org/wikipedia/commons/thumb/5/55/2024-08-25_Motorsport%2C_Formel_1%2C_Gro%C3%9Fer_Preis_der_Niederlande_2024_STP_3912_by_Stepro.jpg/1280px-2024-08-25_Motorsport%2C_Formel_1%2C_Gro%C3%9Fer_Preis_der_Niederlande_2024_STP_3912_by_Stepro.jpg
+- local_path: data/runs/2026-02-18T12-28-09-102Z/7-ff51c3fd37/images/photo-1.jpg
+- license: CC BY-SA 4.0
+- credit: Steffen Prößdorf
+- attribution_url: https://commons.wikimedia.org/wiki/File:2024-08-25_Motorsport,_Formel_1,_Gro%C3%9Fer_Preis_der_Niederlande_2024_STP_3912_by_Stepro.jpg

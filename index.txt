@@ -1,0 +1,24 @@
+﻿You are a web scraper. Your task is to scrape data from sources listed in `example.docs` (or `exmp.docs` when provided).
+
+Result must be saved in JSON format:
+{
+  "title": "title",
+  "content": "content",
+  "url": "url",
+  "source": "source"
+}
+
+Requirements:
+- Build folder structure for each run/article.
+- Keep only unique news (no repeated items across runs).
+- Translate `title` and `content` to Ukrainian by default.
+- For `quote_only` sources, do not republish full text. Create a short Ukrainian retelling and include source link.
+- If there is no article image, automatically find a free-to-use public image from the internet (prefer Wikimedia Commons) and save attribution.
+- Internet fallback images should be context-relevant to the article and should not be repeated across multiple articles in one run.
+- Fallback image search order: source/feed images -> context queries (title + URL tokens) -> generic automotive queries.
+- Prefer real vehicle/event photos; avoid random charts/diagrams/logos for article cards.
+- Avoid watermarked images unless license terms explicitly allow reuse.
+- If photo and text context do not match, skip that photo (better no photo than wrong photo).
+- Sources list must be customizable.
+- Provide a React viewer for results.
+- Provide Codex terminal instructions so scraping can run daily (including multiple runs per day).

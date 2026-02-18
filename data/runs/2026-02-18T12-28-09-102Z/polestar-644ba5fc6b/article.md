@@ -1,0 +1,34 @@
+# Наступ моделей Polestar: від банкрота до лідера?
+
+- source: Auto Motor und Sport
+- url: https://www.auto-motor-und-sport.de/tech-zukunft/alternative-antriebe/polestar-vier-neue-elektroautos-fuer-profitables-wachstum/
+- published_date: 2026-02-18
+- published_time: 11:00:00
+- published_at: 2026-02-18T11:00:00.000Z
+- scraped_at: 2026-02-18T12:28:09.102Z
+- rights_flag: quote_only
+- license_text: Quote-only source. Publish original summary with attribution and source link.
+
+## Content
+
+Шведсько-китайський стартап з виробництва електромобілів Polestar нещодавно потрапив у негативні заголовки через мільярдні збитки. У 2025 році продажі зросли на 34 відсотки. Випустивши чотири нові моделі протягом наступних трьох років, новий генеральний директор Майкл Лошеллер хоче продовжувати розвиватися та робити Polestar прибутковою. Polestar починав як дочірня компанія Volvo і після свого дебютного гібрида Polestar 1 пропонував лише електромобілі. Проблеми для Polestar викликали труднощі із запуском, зупинка обороту приводу та затримки в електроніці та програмному забезпеченні. З 2020 року накопичилося понад чотири мільярди збитків, а ціна акцій різко впала – у 2024 році Volvo продала дві третини своїх акцій бренду.
+
+Джерело: https://www.auto-motor-und-sport.de/tech-zukunft/alternative-antriebe/polestar-vier-neue-elektroautos-fuer-profitables-wachstum/
+
+## Photos
+
+### Photo 1
+- provider: wikimedia
+- source_url: https://upload.wikimedia.org/wikipedia/commons/thumb/3/33/Polestar_4_Auto_Zuerich_2024_DSC_6364.jpg/1280px-Polestar_4_Auto_Zuerich_2024_DSC_6364.jpg
+- local_path: data/runs/2026-02-18T12-28-09-102Z/polestar-644ba5fc6b/images/photo-1.jpg
+- license: CC BY-SA 4.0
+- credit: Alexander-93
+- attribution_url: https://commons.wikimedia.org/wiki/File:Polestar_4_Auto_Zuerich_2024_DSC_6364.jpg
+
+### Photo 2
+- provider: wikimedia
+- source_url: https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/Polestar_4_Auto_Zuerich_2024_DSC_6581.jpg/1280px-Polestar_4_Auto_Zuerich_2024_DSC_6581.jpg
+- local_path: data/runs/2026-02-18T12-28-09-102Z/polestar-644ba5fc6b/images/photo-2.jpg
+- license: CC BY-SA 4.0
+- credit: Alexander-93
+- attribution_url: https://commons.wikimedia.org/wiki/File:Polestar_4_Auto_Zuerich_2024_DSC_6581.jpg

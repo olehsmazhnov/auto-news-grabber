@@ -1,0 +1,25 @@
+{
+  "id": "9264e75bf5",
+  "source_id": "S38",
+  "title": "Ford ділиться ключовими деталями про свою майбутню електричну вантажівку вартістю 30 000 доларів",
+  "content": "Минулого літа Ford Motor Company оголосила про розробку електричного пікапа зі стартовою ціною близько 30 000 доларів. Він надійде в продаж десь у 2027 році, і автовиробник тільки зараз починає оприлюднювати більше деталей про майбутню модель. Центральним елементом проекту є новий виробничий процес, інноваційний дизайн і зосередженість на підвищенні ефективності. Ця вантажівка стане першою моделлю, яка базуватиметься на платформі Ford Universal Electric Vehicle, яка, за словами автовиробника, буде такою ж швидкою, як EcoBoost Mustang, і забезпечуватиме більше місця для пасажирів, ніж Toyota RAV4. Автовиробник доручив командам розробників вантажівки досягти «цільових значень винагороди», які є показниками, призначеними для перетворення будь-яких покращень ефективності в економію витрат на акумулятор і приблизний запас ходу, оскільки автовиробник намагається зробити нову модель доступною. Це включає в себе новий виробничий процес, розроблений для зменшення складності, наприклад використання меншої кількості структурних деталей і кріплень.\n\nДжерело: https://www.motor1.com/news/787559/ford-30000-electric-truck-more-details/",
+  "url": "https://www.motor1.com/news/787559/ford-30000-electric-truck-more-details/",
+  "source": "Motor1",
+  "published_at": "2026-02-17T22:00:00.000Z",
+  "published_date": "2026-02-17",
+  "published_time": "22:00:00",
+  "scraped_at": "2026-02-18T12:28:09.102Z",
+  "article_path": "data/runs/2026-02-18T12-28-09-102Z/ford-30-000-9264e75bf5",
+  "rights_flag": "quote_only",
+  "license_text": "Quote-only source. Publish original summary with attribution and source link.",
+  "photos": [
+    {
+      "source_url": "https://upload.wikimedia.org/wikipedia/commons/f/f5/Henry_Ford_do_more_for_the_world.jpg",
+      "local_path": "data/runs/2026-02-18T12-28-09-102Z/ford-30-000-9264e75bf5/images/photo-1.jpg",
+      "provider": "wikimedia",
+      "license": "CC BY-SA 3.0",
+      "credit": "Poplar313",
+      "attribution_url": "https://commons.wikimedia.org/wiki/File:Henry_Ford_do_more_for_the_world.jpg"
+    }
+  ]
+}
