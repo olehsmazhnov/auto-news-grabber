@@ -6,11 +6,14 @@ Run this command every time you need a fresh scrape (you can run it multiple tim
 powershell -ExecutionPolicy Bypass -File scripts/run_daily.ps1
 ```
 By default this run translates content to Ukrainian (`uk`).
+`scripts/run_daily.ps1` automatically runs photo backfill right after scrape.
 
 Operational rules to enforce every run:
 - Mixed feeds must pass automotive relevance gate (title + URL context). Skip non-auto items.
-- Photo fallback order: source/feed images -> context-aware Wikimedia -> brand/model fallback -> generic automotive Wikimedia.
+- Photo fallback order: source/feed images -> context-aware Wikimedia (title + content + URL tokens) -> brand/model fallback -> generic automotive Wikimedia.
+- After scrape, if any item still has `photos: []`, run photo backfill for the latest run.
 - For backfill operations, keep outputs synchronized: `data/news.json`, `data/runs/<run_id>/news.json`, `article.json`, `article.md`.
+- Keep backend logic split into small modules/functions. Prefer pure/testable functions under `backend/src/modules/` and keep orchestration thin in entry files.
 
 After completion:
 1. Check `data/latest_run.json` for the latest run id/path.
@@ -40,7 +43,7 @@ function Tokens([string]$text) {
 $mismatch = 0
 foreach ($item in $items) {
   if (-not $item.photos -or $item.photos.Count -eq 0) { continue }
-  $ctx = Tokens("$($item.title) $($item.url)")
+  $ctx = Tokens("$($item.title) $($item.content) $($item.url)")
   $ok = $false
   foreach ($photo in $item.photos) {
     $meta = ("$($photo.source_url) $($photo.attribution_url) $($photo.credit)").ToLower()
@@ -109,6 +112,11 @@ powershell -ExecutionPolicy Bypass -File scripts/run_daily.ps1 -NoTranslate
 If you want to set language explicitly:
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/run_daily.ps1 -TargetLanguage uk
+```
+
+Manual photo-backfill only (latest run):
+```powershell
+npm run backfill:photos
 ```
 
 Optional Windows scheduler (every 6 hours):

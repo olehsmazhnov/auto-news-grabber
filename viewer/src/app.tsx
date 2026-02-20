@@ -91,6 +91,25 @@ type NewsItem = {
 
 const RETELLING_PREFIX_RE = /^Короткий переказ матеріалу з [^:\n]+:\s*/iu;
 
+type InterestLabel = "interesting" | "not_interesting";
+
+type InterestSignal = {
+  pattern: RegExp;
+  weight: number;
+};
+
+const POSITIVE_INTEREST_SIGNALS: InterestSignal[] = [
+  { pattern: /\b(new|launch|launched|debut|debuted|reveal|revealed|first look|prototype|concept|facelift|recall)\b/u, weight: 2 },
+  { pattern: /(нов(ий|а|е|і)|дебют|прем[’']?єр|запуск|запуска(є|ють|єтьс)|відклик|концепт|прототип)/u, weight: 2 },
+  { pattern: /\b(cybertruck|cybercab|model\s?3|model\s?y|eqb|amg|polestar|mustang|f-150)\b/u, weight: 1 },
+  { pattern: /\b(usd|\$|долар|євро|million|мільйон)\b/u, weight: 1 },
+];
+
+const NEGATIVE_INTEREST_SIGNALS: InterestSignal[] = [
+  { pattern: /\b(investor|investors|earnings|results|shipments|guidance|conference call|media advisory|statement)\b/u, weight: -2 },
+  { pattern: /(інвестор|результат|поставк|звіт|конференц|медіа|прес-реліз|оголош(ує|ення))/u, weight: -2 },
+];
+
 function safeNumber(value: unknown): number {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return 0;
@@ -117,6 +136,55 @@ function excerpt(content: string, maxChars = 360): string {
     return normalized;
   }
   return `${normalized.slice(0, maxChars).trim()}...`;
+}
+
+function normalizeInterestText(value: string): string {
+  if (!value) {
+    return "";
+  }
+  return value.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function interestScore(text: string, signals: InterestSignal[]): number {
+  if (!text) {
+    return 0;
+  }
+
+  let score = 0;
+  for (const signal of signals) {
+    if (signal.pattern.test(text)) {
+      score += signal.weight;
+    }
+  }
+
+  return score;
+}
+
+function articleInterestScore(item: NewsItem): number {
+  const title = normalizeInterestText(item.title);
+  const content = normalizeInterestText(sanitizeContentForDisplay(item.content)).slice(0, 3200);
+  const combined = `${title} ${content}`;
+
+  let score = 0;
+  score += interestScore(combined, POSITIVE_INTEREST_SIGNALS);
+  score += interestScore(combined, NEGATIVE_INTEREST_SIGNALS);
+
+  if (content.length < 180) {
+    score -= 1;
+  }
+  if (item.rights_flag === "quote_only") {
+    score += 1;
+  }
+  if (Array.isArray(item.photos) && item.photos.length > 0) {
+    score += 1;
+  }
+
+  return score;
+}
+
+function classifyArticleInterest(item: NewsItem): InterestLabel {
+  const score = articleInterestScore(item);
+  return score >= 2 ? "interesting" : "not_interesting";
 }
 
 function formatDateTime(dateOnly: string, timeOnly: string, iso: string): string {
@@ -261,6 +329,77 @@ function failedRunResources(run: RunSummary | null): ResourceReport[] {
   return run.source_reports.filter((report) => report.status === "failed");
 }
 
+function parseIsoTimestampOrZero(value: string): number {
+  if (!value) {
+    return 0;
+  }
+
+  const parsed = new Date(value).getTime();
+  if (Number.isNaN(parsed)) {
+    return 0;
+  }
+
+  return parsed;
+}
+
+function parsePublishedPartsOrZero(dateOnly: string, timeOnly: string): number {
+  if (!dateOnly) {
+    return 0;
+  }
+
+  const normalizedTime = /^\d{2}:\d{2}:\d{2}$/.test(timeOnly)
+    ? timeOnly
+    : /^\d{2}:\d{2}$/.test(timeOnly)
+      ? `${timeOnly}:00`
+      : "00:00:00";
+  return parseIsoTimestampOrZero(`${dateOnly}T${normalizedTime}Z`);
+}
+
+function publishedTimestamp(item: NewsItem): number {
+  const byIso = parseIsoTimestampOrZero(item.published_at);
+  if (byIso > 0) {
+    return byIso;
+  }
+  return parsePublishedPartsOrZero(item.published_date, item.published_time);
+}
+
+function sortNewsNewestFirst(items: NewsItem[]): NewsItem[] {
+  return [...items].sort((left, right) => {
+    const publishedDelta = publishedTimestamp(right) - publishedTimestamp(left);
+    if (publishedDelta !== 0) {
+      return publishedDelta;
+    }
+
+    const scrapedDelta =
+      parseIsoTimestampOrZero(right.scraped_at) - parseIsoTimestampOrZero(left.scraped_at);
+    if (scrapedDelta !== 0) {
+      return scrapedDelta;
+    }
+
+    return right.id.localeCompare(left.id);
+  });
+}
+
+function articlePrimaryTimestamp(item: NewsItem): number {
+  const published = publishedTimestamp(item);
+  if (published > 0) {
+    return published;
+  }
+  return parseIsoTimestampOrZero(item.scraped_at);
+}
+
+function isSameLocalCalendarDay(timestamp: number, reference: Date): boolean {
+  if (timestamp <= 0) {
+    return false;
+  }
+  const date = new Date(timestamp);
+  return (
+    date.getFullYear() === reference.getFullYear() &&
+    date.getMonth() === reference.getMonth() &&
+    date.getDate() === reference.getDate()
+  );
+}
+
 function App(): JSX.Element {
   const [items, setItems] = React.useState<NewsItem[]>([]);
   const [latestRun, setLatestRun] = React.useState<RunSummary | null>(null);
@@ -307,7 +446,7 @@ function App(): JSX.Element {
           return;
         }
 
-        setItems(Array.isArray(newsData) ? newsData : []);
+        setItems(Array.isArray(newsData) ? sortNewsNewestFirst(newsData) : []);
         setLatestRun(latestRunData);
         setRecentRuns(Array.isArray(runHistoryData?.runs) ? runHistoryData.runs.slice(0, 10) : []);
         setDailyHealth(Array.isArray(dailyHealthData?.days) ? dailyHealthData.days.slice(0, 7) : []);
@@ -327,6 +466,45 @@ function App(): JSX.Element {
 
   const latestTotals = runTotals(latestRun);
   const failedResources = failedRunResources(latestRun);
+  const featuredTodayItem = React.useMemo(() => {
+    const today = new Date();
+    const candidates = items
+      .map((item) => ({
+        item,
+        score: articleInterestScore(item),
+        timestamp: articlePrimaryTimestamp(item),
+        hasPhoto: Array.isArray(item.photos) && item.photos.length > 0,
+      }))
+      .filter((entry) => isSameLocalCalendarDay(entry.timestamp, today));
+
+    if (candidates.length === 0) {
+      return null;
+    }
+
+    candidates.sort((left, right) => {
+      const scoreDelta = right.score - left.score;
+      if (scoreDelta !== 0) {
+        return scoreDelta;
+      }
+      const photoDelta = Number(right.hasPhoto) - Number(left.hasPhoto);
+      if (photoDelta !== 0) {
+        return photoDelta;
+      }
+      const timestampDelta = right.timestamp - left.timestamp;
+      if (timestampDelta !== 0) {
+        return timestampDelta;
+      }
+      return right.item.id.localeCompare(left.item.id);
+    });
+
+    return candidates[0]?.item ?? null;
+  }, [items]);
+  const nonFeaturedItems = React.useMemo(() => {
+    if (!featuredTodayItem) {
+      return items;
+    }
+    return items.filter((item) => item.id !== featuredTodayItem.id);
+  }, [featuredTodayItem, items]);
   const sourceUrlLookup = React.useMemo(() => {
     const byId = new Map<string, string>();
     const byName = new Map<string, string>();
@@ -407,6 +585,69 @@ function App(): JSX.Element {
       </header>
 
       {error ? <div className="empty">{error}</div> : null}
+
+      {featuredTodayItem ? (
+        <section className="featured-section">
+          <p className="featured-label">Top pick for today</p>
+          {(() => {
+            const image = cardImage(featuredTodayItem);
+            const articleLink = `/${featuredTodayItem.article_path}/article.md`;
+            const shortContent = excerpt(featuredTodayItem.content, 520);
+            const fullContent = sanitizeContentForDisplay(featuredTodayItem.content);
+            const interest = classifyArticleInterest(featuredTodayItem);
+            const isExpanded = expandedItemIds.has(featuredTodayItem.id);
+            const hasMoreContent = fullContent.length > shortContent.length;
+            const contentToShow = isExpanded ? fullContent : shortContent;
+
+            return (
+              <article className="card featured-card">
+                {image ? (
+                  <img className="card-image" src={image} alt={featuredTodayItem.title} loading="lazy" />
+                ) : null}
+                <div className="card-body">
+                  <div className="meta">
+                    <span>
+                      {formatDateTime(
+                        featuredTodayItem.published_date,
+                        featuredTodayItem.published_time,
+                        featuredTodayItem.published_at,
+                      )}
+                    </span>
+                    <span>{featuredTodayItem.source}</span>
+                    <span className="flag">{featuredTodayItem.rights_flag}</span>
+                    <span
+                      className={`interest-pill ${interest === "interesting" ? "interest-good" : "interest-bad"}`}
+                      title={interest === "interesting" ? "Article looks interesting" : "Article looks less interesting"}
+                    >
+                      {interest === "interesting" ? "Interesting" : "Not interesting"}
+                    </span>
+                  </div>
+                  <h3>{featuredTodayItem.title}</h3>
+                  <p className="excerpt">{contentToShow}</p>
+                  {hasMoreContent ? (
+                    <button
+                      type="button"
+                      className="content-toggle"
+                      onClick={() => toggleExpanded(featuredTodayItem.id)}
+                      aria-expanded={isExpanded}
+                    >
+                      {isExpanded ? "Show less" : "Show more"}
+                    </button>
+                  ) : null}
+                  <div className="links">
+                    <a href={featuredTodayItem.url} target="_blank" rel="noreferrer">
+                      Source
+                    </a>
+                    <a href={articleLink} target="_blank" rel="noreferrer">
+                      Local article
+                    </a>
+                  </div>
+                </div>
+              </article>
+            );
+          })()}
+        </section>
+      ) : null}
 
       <section className="status-grid">
         <article className="status-card">
@@ -502,11 +743,12 @@ function App(): JSX.Element {
       ) : null}
 
       <section className="grid">
-        {items.map((item) => {
+        {nonFeaturedItems.map((item) => {
           const image = cardImage(item);
           const articleLink = `/${item.article_path}/article.md`;
           const shortContent = excerpt(item.content);
           const fullContent = sanitizeContentForDisplay(item.content);
+          const interest = classifyArticleInterest(item);
           const isExpanded = expandedItemIds.has(item.id);
           const hasMoreContent = fullContent.length > shortContent.length;
           const contentToShow = isExpanded ? fullContent : shortContent;
@@ -519,6 +761,12 @@ function App(): JSX.Element {
                   <span>{formatDateTime(item.published_date, item.published_time, item.published_at)}</span>
                   <span>{item.source}</span>
                   <span className="flag">{item.rights_flag}</span>
+                  <span
+                    className={`interest-pill ${interest === "interesting" ? "interest-good" : "interest-bad"}`}
+                    title={interest === "interesting" ? "Article looks interesting" : "Article looks less interesting"}
+                  >
+                    {interest === "interesting" ? "Interesting" : "Not interesting"}
+                  </span>
                 </div>
                 <h3>{item.title}</h3>
                 <p className="excerpt">{contentToShow}</p>

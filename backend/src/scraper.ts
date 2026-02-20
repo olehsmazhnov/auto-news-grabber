@@ -1,9 +1,7 @@
-﻿import fs from "node:fs/promises";
+import fs from "node:fs/promises";
 import path from "node:path";
-import * as cheerio from "cheerio";
 import Parser from "rss-parser";
 import {
-  MAX_ARTICLE_PARAGRAPHS,
   MIN_ARTICLE_CHARS,
 } from "./constants.js";
 import type {
@@ -16,14 +14,12 @@ import type {
   Source,
   TranslateItemsOptions,
 } from "./types.js";
-import { renderArticleMarkdown } from "./utils/article-markdown.js";
-import { createRunId, toDateOnly, toIsoOrEmpty, toTimeOnly } from "./utils/date.js";
-import { fetchHtmlOrEmpty, fetchText } from "./utils/http.js";
+import { createRunId, toDateOnly, toTimeOnly } from "./utils/date.js";
+import { fetchText } from "./utils/http.js";
 import { log } from "./utils/log.js";
 import {
   downloadPhotoCandidates,
   extractFeedImageUrls,
-  extractHtmlImageUrls,
   resolvePhotoCandidates,
 } from "./utils/photos.js";
 import {
@@ -35,305 +31,37 @@ import {
   normalizeRunHistorySnapshot,
   upsertRunHistory,
 } from "./utils/run-reports.js";
-import { shortHash, slugify } from "./utils/slug.js";
+import { shortHash } from "./utils/slug.js";
 import {
   excerptBySentences,
-  htmlToText,
   normalizeArticleContent,
-  normalizeParagraph,
   normalizeText,
   trimContent,
 } from "./utils/text.js";
 import { translateText } from "./utils/translation.js";
-
-type FeedItem = Parser.Item & Record<string, unknown>;
-
-interface ArticlePagePayload {
-  content: string;
-  imageUrls: string[];
-}
-
-interface SeenNewsIndex {
-  version: 1;
-  updated_at: string;
-  keys: Record<string, string>;
-}
-
-interface KeyableNewsItem {
-  title: string;
-  url: string;
-  published_date?: string;
-}
-
-const TRACKING_QUERY_KEYS = new Set([
-  "utm_source",
-  "utm_medium",
-  "utm_campaign",
-  "utm_term",
-  "utm_content",
-  "gclid",
-  "fbclid",
-  "mc_cid",
-  "mc_eid",
-  "ref",
-  "ref_src",
-  "source",
-  "igshid",
-]);
-
-function uniqueStrings(values: string[]): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-
-  for (const value of values) {
-    if (!value || seen.has(value)) {
-      continue;
-    }
-    seen.add(value);
-    out.push(value);
-  }
-
-  return out;
-}
-
-function readDateFromFeedItem(entry: FeedItem): string {
-  const candidates = [entry.isoDate, entry.pubDate, entry.published, entry.updated];
-  for (const candidate of candidates) {
-    const iso = toIsoOrEmpty(candidate);
-    if (iso) {
-      return iso;
-    }
-  }
-  return "";
-}
-
-function extractEntryText(item: FeedItem): string {
-  const candidates: unknown[] = [
-    item.content,
-    item["content:encoded"],
-    item.summary,
-    item.contentSnippet,
-    item.description,
-  ];
-
-  for (const candidate of candidates) {
-    const text = normalizeArticleContent(htmlToText(candidate));
-    if (text) {
-      return text;
-    }
-  }
-
-  return "";
-}
-
-function collectParagraphs(
-  $: cheerio.CheerioAPI,
-  selectors: string[],
-): string[] {
-  const paragraphs: string[] = [];
-
-  for (const selector of selectors) {
-    $(selector).each((_, element) => {
-      if (paragraphs.length >= MAX_ARTICLE_PARAGRAPHS) {
-        return false;
-      }
-
-      const paragraph = normalizeParagraph($(element).text());
-      if (paragraph.length >= 60) {
-        paragraphs.push(paragraph);
-      }
-
-      return undefined;
-    });
-
-    if (paragraphs.length >= 10) {
-      break;
-    }
-  }
-
-  return uniqueStrings(paragraphs).slice(0, MAX_ARTICLE_PARAGRAPHS);
-}
-
-function extractLongArticleContentFromHtml(html: string): string {
-  if (!html) {
-    return "";
-  }
-
-  const $ = cheerio.load(html);
-  $("script, style, noscript").remove();
-
-  const paragraphs = collectParagraphs($, [
-    "article p",
-    "main p",
-    ".article p",
-    ".post p",
-    ".entry-content p",
-    "p",
-  ]);
-
-  if (paragraphs.length === 0) {
-    return "";
-  }
-
-  return normalizeArticleContent(paragraphs.join("\n\n"));
-}
-
-async function fetchArticlePayload(url: string): Promise<ArticlePagePayload> {
-  const body = await fetchHtmlOrEmpty(url);
-  if (!body) {
-    return {
-      content: "",
-      imageUrls: [],
-    };
-  }
-
-  return {
-    content: extractLongArticleContentFromHtml(body),
-    imageUrls: extractHtmlImageUrls(body),
-  };
-}
-
-function selectBestContent(feedText: string, pageText: string): string {
-  if (pageText.length > feedText.length) {
-    return pageText;
-  }
-  return feedText;
-}
-
-function normalizeTitleForKey(title: string): string {
-  return normalizeText(title)
-    .toLowerCase()
-    .normalize("NFKC")
-    .replace(/[^\p{L}\p{N}\s]/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function canonicalizeUrlForKey(rawUrl: string): string {
-  const normalized = normalizeText(rawUrl);
-  if (!normalized) {
-    return "";
-  }
-
-  try {
-    const parsed = new URL(normalized);
-    const host = parsed.hostname.toLowerCase();
-    const pathname = parsed.pathname.replace(/\/+$/g, "") || "/";
-    const entries = [...parsed.searchParams.entries()]
-      .filter(([key]) => !TRACKING_QUERY_KEYS.has(key.toLowerCase()))
-      .sort(([aKey, aValue], [bKey, bValue]) => {
-        if (aKey === bKey) {
-          return aValue.localeCompare(bValue);
-        }
-        return aKey.localeCompare(bKey);
-      });
-
-    const cleanedParams = new URLSearchParams();
-    for (const [key, value] of entries) {
-      cleanedParams.append(key, value);
-    }
-
-    const query = cleanedParams.toString();
-    return `${host}${pathname}${query ? `?${query}` : ""}`;
-  } catch {
-    return normalized.toLowerCase().replace(/\/+$/g, "");
-  }
-}
-
-function collectNewsKeys(item: KeyableNewsItem): string[] {
-  const keys: string[] = [];
-  const canonicalUrl = canonicalizeUrlForKey(item.url);
-  if (canonicalUrl) {
-    keys.push(`u:${canonicalUrl}`);
-  }
-
-  const titleKey = normalizeTitleForKey(item.title);
-  if (titleKey.length >= 16) {
-    // Keep a title-only key to avoid cross-run repeats when a source does not
-    // provide a stable publish timestamp and date shifts between scrapes.
-    keys.push(`t:${titleKey}`);
-
-    const dateKey = normalizeText(item.published_date ?? "");
-    if (dateKey) {
-      keys.push(`td:${titleKey}|${dateKey}`);
-    }
-  }
-
-  return uniqueStrings(keys);
-}
-
-function itemQualityScore(item: CollectedNewsItem): number {
-  const contentWeight = item.content.length;
-  const imageWeight =
-    (item.feed_image_candidates.length + item.article_image_candidates.length) * 100;
-  const dateWeight = item.published_at ? 10 : 0;
-  return contentWeight + imageWeight + dateWeight;
-}
-
-function pickBestDuplicate(
-  current: CollectedNewsItem,
-  candidate: CollectedNewsItem,
-): CollectedNewsItem {
-  if (itemQualityScore(candidate) > itemQualityScore(current)) {
-    return candidate;
-  }
-  return current;
-}
-
-function dedupeItems(items: CollectedNewsItem[]): CollectedNewsItem[] {
-  const deduped: CollectedNewsItem[] = [];
-  const keyToIndex = new Map<string, number>();
-
-  for (const item of items) {
-    const keys = collectNewsKeys(item);
-    let existingIndex = -1;
-
-    for (const key of keys) {
-      const index = keyToIndex.get(key);
-      if (index !== undefined) {
-        existingIndex = index;
-        break;
-      }
-    }
-
-    if (existingIndex === -1) {
-      const nextIndex = deduped.push(item) - 1;
-      for (const key of keys) {
-        keyToIndex.set(key, nextIndex);
-      }
-      continue;
-    }
-
-    deduped[existingIndex] = pickBestDuplicate(deduped[existingIndex], item);
-    for (const key of keys) {
-      keyToIndex.set(key, existingIndex);
-    }
-  }
-
-  return deduped;
-}
-
-function buildQuoteOnlyUkrainianRetelling(
-  url: string,
-  translatedContent: string,
-): string {
-  const normalized = normalizeArticleContent(translatedContent);
-  const body = excerptBySentences(normalized, 6, 1400) || normalized;
-
-  return [
-    body,
-    "",
-    `Джерело: ${url}`,
-  ].join("\n");
-}
-
-function shortErrorMessage(error: unknown): string {
-  const value = normalizeText(String(error ?? ""));
-  if (!value) {
-    return "Unknown error";
-  }
-  return value.slice(0, 400);
-}
+import {
+  createUniqueArticleFolderName,
+  saveArticleFileSet,
+  toRelativePath,
+} from "./modules/output-storage.js";
+import {
+  buildQuoteOnlyUkrainianRetelling,
+  extractEntryText,
+  fetchArticlePayload,
+  readDateFromFeedItem,
+  selectBestContent,
+  shortErrorMessage,
+  type FeedItem,
+} from "./modules/news-content.js";
+import {
+  dedupeItems,
+  mergeUniqueNewsItems,
+} from "./modules/news-item-keys.js";
+import {
+  filterAlreadySeenItems,
+  loadSeenNewsIndex,
+  readJsonFileSafe,
+} from "./modules/seen-news-index.js";
 
 export async function collectItems(
   sources: Source[],
@@ -368,7 +96,6 @@ export async function collectItems(
     for (const entry of entries) {
       const title = normalizeText(entry.title ?? "");
       const url = normalizeText(entry.link ?? source.url);
-
       if (!title || !url) {
         continue;
       }
@@ -378,7 +105,6 @@ export async function collectItems(
 
       let articleContent = "";
       let articleImageUrls: string[] = [];
-
       const shouldFetchArticle =
         feedContent.length < MIN_ARTICLE_CHARS || feedImageUrls.length === 0;
 
@@ -392,13 +118,11 @@ export async function collectItems(
       if (source.rightsFlag === "quote_only") {
         content = excerptBySentences(content, 10, 2200);
       }
-
       if (!content) {
         continue;
       }
 
       const publishedAt = readDateFromFeedItem(entry);
-
       allItems.push({
         source_id: source.id,
         title,
@@ -454,7 +178,6 @@ export async function translateItems(
       true,
       verbose,
     );
-
     const translatedContent = await translateText(
       item.content,
       targetLanguage,
@@ -475,154 +198,6 @@ export async function translateItems(
   }
 
   return translated;
-}
-
-function toRelativePath(targetPath: string): string {
-  return path.relative(process.cwd(), targetPath).replace(/\\/g, "/");
-}
-
-function emptySeenNewsIndex(scrapedAt: string): SeenNewsIndex {
-  return {
-    version: 1,
-    updated_at: scrapedAt,
-    keys: {},
-  };
-}
-
-function isSeenNewsIndex(value: unknown): value is SeenNewsIndex {
-  if (typeof value !== "object" || value === null) {
-    return false;
-  }
-
-  const raw = value as Record<string, unknown>;
-  if (raw.version !== 1) {
-    return false;
-  }
-
-  if (typeof raw.updated_at !== "string") {
-    return false;
-  }
-
-  if (typeof raw.keys !== "object" || raw.keys === null) {
-    return false;
-  }
-
-  return true;
-}
-
-async function readJsonFileSafe<T>(filePath: string): Promise<T | null> {
-  try {
-    const raw = await fs.readFile(filePath, "utf8");
-    return JSON.parse(raw.replace(/^\uFEFF/, "")) as T;
-  } catch {
-    return null;
-  }
-}
-
-function seedSeenKeysFromNewsItems(
-  newsItems: KeyableNewsItem[],
-  scrapedAt: string,
-): Record<string, string> {
-  const keys: Record<string, string> = {};
-
-  for (const item of newsItems) {
-    for (const key of collectNewsKeys(item)) {
-      keys[key] = scrapedAt;
-    }
-  }
-
-  return keys;
-}
-
-async function loadSeenNewsIndex(
-  indexPath: string,
-  outputPath: string,
-  scrapedAt: string,
-  verbose: boolean,
-): Promise<SeenNewsIndex> {
-  const indexFromFile = await readJsonFileSafe<unknown>(indexPath);
-  if (isSeenNewsIndex(indexFromFile)) {
-    return indexFromFile;
-  }
-
-  const seeded = emptySeenNewsIndex(scrapedAt);
-  const snapshot = await readJsonFileSafe<NewsItem[]>(outputPath);
-  if (!Array.isArray(snapshot) || snapshot.length === 0) {
-    return seeded;
-  }
-
-  const snapshotKeys = seedSeenKeysFromNewsItems(snapshot, scrapedAt);
-  seeded.keys = snapshotKeys;
-  log(
-    `Initialized seen index from current snapshot (${Object.keys(snapshotKeys).length} keys)`,
-    verbose,
-  );
-
-  return seeded;
-}
-
-function filterAlreadySeenItems(
-  items: CollectedNewsItem[],
-  seenIndex: SeenNewsIndex,
-  scrapedAt: string,
-): { freshItems: CollectedNewsItem[]; skippedCount: number } {
-  const freshItems: CollectedNewsItem[] = [];
-  let skippedCount = 0;
-
-  for (const item of items) {
-    const keys = collectNewsKeys(item);
-    const alreadySeen = keys.some((key) => typeof seenIndex.keys[key] === "string");
-    if (alreadySeen) {
-      skippedCount += 1;
-      continue;
-    }
-
-    freshItems.push(item);
-    for (const key of keys) {
-      seenIndex.keys[key] = scrapedAt;
-    }
-  }
-
-  return {
-    freshItems,
-    skippedCount,
-  };
-}
-
-function mergeUniqueNewsItems(
-  existingItems: NewsItem[],
-  newItems: NewsItem[],
-): NewsItem[] {
-  const merged: NewsItem[] = [];
-  const seenKeys = new Set<string>();
-
-  for (const item of [...newItems, ...existingItems]) {
-    const keys = collectNewsKeys(item);
-    if (keys.some((key) => seenKeys.has(key))) {
-      continue;
-    }
-
-    merged.push(item);
-    for (const key of keys) {
-      seenKeys.add(key);
-    }
-  }
-
-  return merged;
-}
-
-async function saveArticleFileSet(item: NewsItem, articleDir: string): Promise<void> {
-  await fs.writeFile(
-    path.join(articleDir, "article.json"),
-    `${JSON.stringify(item, null, 2)}\n`,
-    "utf8",
-  );
-
-  await fs.writeFile(
-    path.join(articleDir, "article.md"),
-    renderArticleMarkdown(item),
-    "utf8",
-  );
 }
 
 export async function saveOutput(
@@ -658,17 +233,8 @@ export async function saveOutput(
   const usedWikimediaPhotoUrls = new Set<string>();
 
   for (const item of freshItems) {
-    const id = shortHash(item.url);
-    const baseFolderName = `${slugify(item.title, 56)}-${id}`;
-
-    let folderName = baseFolderName;
-    let suffix = 1;
-    while (usedFolderNames.has(folderName)) {
-      folderName = `${baseFolderName}-${suffix}`;
-      suffix += 1;
-    }
-    usedFolderNames.add(folderName);
-
+    const itemId = shortHash(item.url);
+    const folderName = createUniqueArticleFolderName(item.title, item.url, usedFolderNames);
     const articleDir = path.join(runDir, folderName);
     await fs.mkdir(articleDir, { recursive: true });
 
@@ -679,6 +245,7 @@ export async function saveOutput(
       {
         onlyPublicDomain: item.rights_flag === "quote_only",
         contextUrl: item.url,
+        contextText: item.content,
         excludeUrls: [...usedWikimediaPhotoUrls],
       },
     );
@@ -693,6 +260,7 @@ export async function saveOutput(
           onlyPublicDomain: true,
           fallbackToGenericIfEmpty: true,
           contextUrl: item.url,
+          contextText: item.content,
           excludeUrls: [...usedWikimediaPhotoUrls],
         },
       );
@@ -709,7 +277,7 @@ export async function saveOutput(
     }
 
     const saved: NewsItem = {
-      id,
+      id: itemId,
       source_id: item.source_id,
       title: item.title,
       content: item.content,

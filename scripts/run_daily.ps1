@@ -37,6 +37,11 @@ if ($LASTEXITCODE -ne 0) {
     throw "Daily run failed with exit code $LASTEXITCODE"
 }
 
+node "dist/backfill_missing_photos.js" --output $Output --latest-run "data/latest_run.json" --verbose
+if ($LASTEXITCODE -ne 0) {
+    throw "Photo backfill step failed with exit code $LASTEXITCODE"
+}
+
 Write-Host "News saved to $Output"
 Write-Host "Translation target: $TargetLanguage"
 if (Test-Path "data/latest_run.json") {

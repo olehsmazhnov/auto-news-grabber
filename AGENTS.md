@@ -18,6 +18,7 @@ AI Rules for this project:
 - Every run must create a separate timestamped folder under `data/runs/<run_id>/`.
 - Keep `data/news.json` as latest snapshot and `data/latest_run.json` as run pointer.
 - Enforce uniqueness: skip already-seen news across runs (no repeated items in fresh output).
+- After each scrape run, execute a post-step for latest-run items with `photos: []` to retry photo search/backfill.
 - If photos/content are backfilled after a run, sync all affected outputs:
   `data/news.json`, `data/runs/<run_id>/news.json`, and per-article `article.json`/`article.md`.
 
@@ -26,9 +27,9 @@ AI Rules for this project:
 - For `quote_only` sources, use only clearly licensed public photos (prefer Wikimedia Commons).
 - If an item has no downloadable source image, run fallback search in free/public sources (Wikimedia Commons) and try to save at least 1 image.
 - Fallback order must be:
-  source/feed images -> context-aware Wikimedia queries (title + URL tokens) ->
+  source/feed images -> context-aware Wikimedia queries (title + content + URL tokens) ->
   brand/model fallback queries -> generic automotive Wikimedia queries.
-- Fallback internet photos must match article context (brand/model/topic from title or URL), not random generic images.
+- Fallback internet photos must match article context (brand/model/topic from title/content/URL), not random generic images.
 - For broad/mixed sources where some non-auto topics can appear, only use topic-matching fallback images when automotive intent is absent; do not force random car photos.
 - Apply a photo-text consistency gate before saving: if no token overlap between article context and image metadata (`source_url`/`attribution_url`/title), reject the image.
 - Prefer real vehicle/event photos over generic charts, diagrams, logos, signatures, maps, office/building/plaque assets, or decorative assets.

@@ -17,11 +17,16 @@ interface ResolvePhotoOptions {
   onlyPublicDomain?: boolean;
   fallbackToGenericIfEmpty?: boolean;
   contextUrl?: string;
+  contextText?: string;
   excludeUrls?: string[];
 }
 
 const WIKIMEDIA_CANDIDATE_LIMIT = MAX_IMAGES_PER_NEWS * 4;
 const EXTENDED_WIKIMEDIA_CANDIDATE_LIMIT = Math.max(WIKIMEDIA_CANDIDATE_LIMIT * 3, 24);
+const CONTENT_TOKEN_CHAR_LIMIT = 3_500;
+const CONTENT_SIGNAL_TOKEN_LIMIT = 14;
+const WIKIMEDIA_SEARCH_RETRY_ATTEMPTS = 3;
+const WIKIMEDIA_SEARCH_RETRY_BASE_DELAY_MS = 350;
 const GENERIC_WIKIMEDIA_FALLBACK_QUERIES = [
   "automobile",
   "car",
@@ -569,6 +574,30 @@ function extractSearchTokensFromUrl(contextUrl: string): string[] {
   }
 }
 
+function extractSearchTokensFromContent(contextText: string): string[] {
+  if (!contextText) {
+    return [];
+  }
+
+  const normalized = contextText.replace(/\s+/g, " ").trim();
+  if (!normalized) {
+    return [];
+  }
+
+  const truncated = normalized.slice(0, CONTENT_TOKEN_CHAR_LIMIT);
+  const rawTokens = extractSearchTokens(truncated);
+  const prioritized = prioritizeSearchTokens(rawTokens);
+
+  return uniqueStrings(
+    prioritized.filter((token) =>
+      AUTO_BRANDS.has(token)
+      || AUTO_CONTEXT_TOKENS.has(token)
+      || isLikelyModelToken(token)
+      || /[a-z0-9]/i.test(token)
+    ),
+  ).slice(0, CONTENT_SIGNAL_TOKEN_LIMIT);
+}
+
 function expandSearchTokenVariants(token: string): string[] {
   const variants = new Set<string>([token]);
 
@@ -676,6 +705,7 @@ function selectSignalTokens(tokens: string[], maxTokens: number): string[] {
 function hasAutomotiveIntent(
   title: string,
   contextUrl: string,
+  contextText: string,
   searchTokens: string[],
 ): boolean {
   if (searchTokens.some((token) => AUTO_BRANDS.has(token) || AUTO_CONTEXT_TOKENS.has(token))) {
@@ -691,7 +721,11 @@ function hasAutomotiveIntent(
     }
   }
 
-  const rawContext = `${title} ${contextUrl} ${decodedPath}`.toLowerCase();
+  const normalizedContextText = contextText
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .slice(0, CONTENT_TOKEN_CHAR_LIMIT);
+  const rawContext = `${title} ${contextUrl} ${decodedPath} ${normalizedContextText}`.toLowerCase();
   return AUTOMOTIVE_INTENT_PATTERNS.some((pattern) => pattern.test(rawContext));
 }
 
@@ -1024,6 +1058,43 @@ function candidateLooksAutomotiveVisual(candidateText: string): boolean {
   return AUTOMOTIVE_VISUAL_HINTS.some((hint) => candidateText.includes(hint));
 }
 
+function isRetriableWikimediaError(error: unknown): boolean {
+  const message = String(error ?? "").toLowerCase();
+  return message.includes("http 429")
+    || message.includes("http 500")
+    || message.includes("http 502")
+    || message.includes("http 503")
+    || message.includes("http 504")
+    || message.includes("fetch")
+    || message.includes("timeout")
+    || message.includes("timed out")
+    || message.includes("econn");
+}
+
+function sleep(delayMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, delayMs);
+  });
+}
+
+async function fetchWikimediaPayload(endpoint: string): Promise<unknown | null> {
+  for (let attempt = 0; attempt < WIKIMEDIA_SEARCH_RETRY_ATTEMPTS; attempt += 1) {
+    try {
+      return JSON.parse(await fetchText(endpoint)) as unknown;
+    } catch (error) {
+      const isLastAttempt = attempt >= WIKIMEDIA_SEARCH_RETRY_ATTEMPTS - 1;
+      if (isLastAttempt || !isRetriableWikimediaError(error)) {
+        return null;
+      }
+
+      const delayMs = WIKIMEDIA_SEARCH_RETRY_BASE_DELAY_MS * (attempt + 1);
+      await sleep(delayMs);
+    }
+  }
+
+  return null;
+}
+
 async function searchWikimediaCandidates(
   query: string,
   limit: number,
@@ -1051,10 +1122,8 @@ async function searchWikimediaCandidates(
 
   const endpoint = `https://commons.wikimedia.org/w/api.php?${params.toString()}`;
 
-  let payload: unknown;
-  try {
-    payload = JSON.parse(await fetchText(endpoint)) as unknown;
-  } catch {
+  const payload = await fetchWikimediaPayload(endpoint);
+  if (!payload) {
     return [];
   }
 
@@ -1176,6 +1245,7 @@ export async function resolvePhotoCandidates(
     onlyPublicDomain = false,
     fallbackToGenericIfEmpty = false,
     contextUrl = "",
+    contextText = "",
     excludeUrls = [],
   } = options;
   const candidates: PhotoCandidate[] = [];
@@ -1191,6 +1261,7 @@ export async function resolvePhotoCandidates(
 
   const urlSearchTokens = extractSearchTokensFromUrl(contextUrl);
   const titleSearchTokens = extractSearchTokens(title);
+  const contentSearchTokens = extractSearchTokensFromContent(contextText);
   const normalizedTitleTokens = urlSearchTokens.length > 0
     ? titleSearchTokens.filter((token) => /[a-z0-9]/i.test(token))
     : titleSearchTokens;
@@ -1200,9 +1271,11 @@ export async function resolvePhotoCandidates(
     // Keep title tokens only when they carry latin/digit model context
     // to avoid translated noise blocking relevance checks.
     ...normalizedTitleTokens,
-  ]).slice(0, 20);
+    // Use article text as additional context when title/URL tokens are sparse.
+    ...contentSearchTokens,
+  ]).slice(0, 28);
   const searchTokens = prioritizeSearchTokens(expandSearchTokens(rawSearchTokens)).slice(0, 24);
-  const automotiveIntent = hasAutomotiveIntent(title, contextUrl, searchTokens);
+  const automotiveIntent = hasAutomotiveIntent(title, contextUrl, contextText, searchTokens);
   const wikimediaQueries = createWikimediaQueries(title, searchTokens);
   for (const query of wikimediaQueries) {
     const wikimediaCandidates = await searchWikimediaCandidates(
@@ -1299,22 +1372,32 @@ export async function resolvePhotoCandidates(
 
   const excludedUrls = new Set(excludeUrls.map((value) => value.trim()).filter((value) => value.length > 0));
   const seen = new Set<string>();
-  const filtered = candidates.filter((candidate) => {
+  const deduped = candidates.filter((candidate) => {
     const candidateMetaText = `${candidate.url} ${candidate.attributionUrl}`.toLowerCase();
     if (candidateLooksNonPhotographic(candidateMetaText)) {
       return false;
     }
-    if (excludedUrls.has(candidate.url) || seen.has(candidate.url)) {
+    if (seen.has(candidate.url)) {
       return false;
     }
     seen.add(candidate.url);
     return true;
   });
-  return [...filtered].sort(
+
+  const sortByRelevance = (items: PhotoCandidate[]): PhotoCandidate[] => [...items].sort(
     (left, right) =>
       scoreCandidateContext(right, searchTokens, automotiveIntent)
       - scoreCandidateContext(left, searchTokens, automotiveIntent),
   );
+
+  const uniqueCandidates = deduped.filter((candidate) => !excludedUrls.has(candidate.url));
+  if (uniqueCandidates.length > 0 || excludedUrls.size === 0) {
+    return sortByRelevance(uniqueCandidates);
+  }
+
+  // If all matching candidates were already used in the run, allow reuse
+  // instead of returning no photos.
+  return sortByRelevance(deduped);
 }
 
 export async function downloadPhotoCandidates(

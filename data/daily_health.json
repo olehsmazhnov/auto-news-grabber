@@ -1,13 +1,13 @@
 {
-  "generated_at": "2026-02-18T12:28:09.102Z",
+  "generated_at": "2026-02-20T08:26:18.820Z",
   "days": [
     {
-      "date": "2026-02-18",
+      "date": "2026-02-20",
       "run_count": 1,
-      "items_saved": 40,
+      "items_saved": 32,
       "resource_checks": {
-        "total_resources": 14,
-        "ok_resources": 10,
+        "total_resources": 12,
+        "ok_resources": 8,
         "empty_resources": 0,
         "failed_resources": 4
       },
@@ -82,22 +82,6 @@
           "source_id": "S44",
           "source_name": "Electrek RSS",
           "source": "Electrek",
-          "ok_runs": 1,
-          "empty_runs": 0,
-          "failed_runs": 0
-        },
-        {
-          "source_id": "S45",
-          "source_name": "Focus RSS",
-          "source": "Focus",
-          "ok_runs": 1,
-          "empty_runs": 0,
-          "failed_runs": 0
-        },
-        {
-          "source_id": "S46",
-          "source_name": "ITC.ua Auto RSS",
-          "source": "ITC.ua",
           "ok_runs": 1,
           "empty_runs": 0,
           "failed_runs": 0

@@ -120,18 +120,7 @@
       "max_items": 4,
       "rights_flag": "quote_only",
       "license_text": "Quote-only source. Publish original summary with attribution and source link."
-    },
-    {
-      "id": "S45",
-      "name": "Focus RSS",
-      "source": "Focus",
-      "url": "https://focus.ua/",
-      "feed_url": "https://focus.ua/uk/modules/rss.php",
-      "enabled": true,
-      "max_items": 4,
-      "rights_flag": "quote_only",
-      "license_text": "Quote-only source. Publish original summary with attribution and source link."
-    },
+    },  
     {
       "id": "S47",
       "name": "Auto Motor und Sport RSS",

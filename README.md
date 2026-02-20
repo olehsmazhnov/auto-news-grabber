@@ -20,7 +20,11 @@ Daily auto-news pipeline with translation to Ukrainian, long-form content, dated
 
 ## Project structure
 - `backend/src/scrape_news.ts` - scraper entrypoint
-- `backend/src/scraper.ts` - collection/translation/run-save orchestration
+- `backend/src/scraper.ts` - collection/translation/run-save orchestration (thin orchestrator)
+- `backend/src/modules/news-content.ts` - feed/article content extraction helpers
+- `backend/src/modules/news-item-keys.ts` - dedupe and stable key generation
+- `backend/src/modules/seen-news-index.ts` - seen-index load/filter/update helpers
+- `backend/src/modules/output-storage.ts` - article/run output writing helpers
 - `backend/src/utils/*.ts` - parsing, HTTP, photos, markdown, dates, etc.
 - `backend/sources.json` - source list + rights policy per source
 - `data/news.json` - latest snapshot
@@ -43,6 +47,11 @@ npm install
 npm run build
 ```
 
+## Code organization rule
+- Keep features split into small, focused, testable modules.
+- Prefer pure functions for parsing/normalization/keying logic.
+- Keep orchestration files (`scraper.ts`, scripts, CLI entrypoints) focused on flow wiring, not large in-file business logic.
+
 ## Run scrape once
 ```powershell
 npm run scrape
@@ -58,6 +67,7 @@ npm run scrape:no-translate
 powershell -ExecutionPolicy Bypass -File scripts/run_daily.ps1
 ```
 This uses Ukrainian translation by default (`-TargetLanguage uk`).
+The script also runs automatic photo backfill for latest-run items that still have `photos: []`.
 
 ## Daily run without translation
 ```powershell
@@ -67,6 +77,11 @@ powershell -ExecutionPolicy Bypass -File scripts/run_daily.ps1 -NoTranslate
 ## Daily run with explicit language
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/run_daily.ps1 -TargetLanguage uk
+```
+
+## Photo backfill only (latest run)
+```powershell
+npm run backfill:photos
 ```
 
 ## Viewer
@@ -122,7 +137,8 @@ data/runs/<run_id>/
 ## Photo policy
 - For `official_press` sources, the pipeline tries source/metadata images first and can fallback to Wikimedia Commons lookup.
 - For `quote_only` sources, the pipeline uses only Wikimedia Commons (publicly licensed) candidates.
-- If no image is downloaded in the first pass, the pipeline runs an additional Wikimedia fallback search using article context (title + URL tokens), and only then generic automotive queries.
+- If no image is downloaded in the first pass, the pipeline runs an additional Wikimedia fallback search using article context (title + content + URL tokens), and only then generic automotive queries.
+- After each daily run, a post-step checks latest-run items with `photos: []` and retries photo search/backfill, syncing snapshot + run + article files.
 - Even in generic fallback mode, candidates must pass context relevance checks against the article.
 - Non-photographic assets (for example charts, diagrams, logos, icons, maps, screenshots) are filtered out.
 - Watermarked assets are rejected by URL/metadata hints when detected.
