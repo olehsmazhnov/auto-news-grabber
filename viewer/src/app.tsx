@@ -400,6 +400,39 @@ function isSameLocalCalendarDay(timestamp: number, reference: Date): boolean {
   );
 }
 
+type CardRenderData = {
+  image: string | null;
+  articleLink: string;
+  interest: InterestLabel;
+  isExpanded: boolean;
+  hasMoreContent: boolean;
+  contentToShow: string;
+};
+
+function buildCardRenderData(
+  item: NewsItem,
+  expandedItemIds: Set<string>,
+  excerptMaxChars = 360,
+): CardRenderData {
+  const image = cardImage(item);
+  const articleLink = `/${item.article_path}/article.md`;
+  const shortContent = excerpt(item.content, excerptMaxChars);
+  const fullContent = sanitizeContentForDisplay(item.content);
+  const interest = classifyArticleInterest(item);
+  const isExpanded = expandedItemIds.has(item.id);
+  const hasMoreContent = fullContent.length > shortContent.length;
+  const contentToShow = isExpanded ? fullContent : shortContent;
+
+  return {
+    image,
+    articleLink,
+    interest,
+    isExpanded,
+    hasMoreContent,
+    contentToShow,
+  };
+}
+
 function App(): JSX.Element {
   const [items, setItems] = React.useState<NewsItem[]>([]);
   const [latestRun, setLatestRun] = React.useState<RunSummary | null>(null);
@@ -505,6 +538,12 @@ function App(): JSX.Element {
     }
     return items.filter((item) => item.id !== featuredTodayItem.id);
   }, [featuredTodayItem, items]);
+  const featuredCardData = React.useMemo(() => {
+    if (!featuredTodayItem) {
+      return null;
+    }
+    return buildCardRenderData(featuredTodayItem, expandedItemIds, 520);
+  }, [featuredTodayItem, expandedItemIds]);
   const sourceUrlLookup = React.useMemo(() => {
     const byId = new Map<string, string>();
     const byName = new Map<string, string>();
@@ -586,66 +625,53 @@ function App(): JSX.Element {
 
       {error ? <div className="empty">{error}</div> : null}
 
-      {featuredTodayItem ? (
+      {featuredTodayItem && featuredCardData ? (
         <section className="featured-section">
           <p className="featured-label">Top pick for today</p>
-          {(() => {
-            const image = cardImage(featuredTodayItem);
-            const articleLink = `/${featuredTodayItem.article_path}/article.md`;
-            const shortContent = excerpt(featuredTodayItem.content, 520);
-            const fullContent = sanitizeContentForDisplay(featuredTodayItem.content);
-            const interest = classifyArticleInterest(featuredTodayItem);
-            const isExpanded = expandedItemIds.has(featuredTodayItem.id);
-            const hasMoreContent = fullContent.length > shortContent.length;
-            const contentToShow = isExpanded ? fullContent : shortContent;
-
-            return (
-              <article className="card featured-card">
-                {image ? (
-                  <img className="card-image" src={image} alt={featuredTodayItem.title} loading="lazy" />
-                ) : null}
-                <div className="card-body">
-                  <div className="meta">
-                    <span>
-                      {formatDateTime(
-                        featuredTodayItem.published_date,
-                        featuredTodayItem.published_time,
-                        featuredTodayItem.published_at,
-                      )}
-                    </span>
-                    <span>{featuredTodayItem.source}</span>
-                    <span className="flag">{featuredTodayItem.rights_flag}</span>
-                    <span
-                      className={`interest-pill ${interest === "interesting" ? "interest-good" : "interest-bad"}`}
-                      title={interest === "interesting" ? "Article looks interesting" : "Article looks less interesting"}
-                    >
-                      {interest === "interesting" ? "Interesting" : "Not interesting"}
-                    </span>
-                  </div>
-                  <h3>{featuredTodayItem.title}</h3>
-                  <p className="excerpt">{contentToShow}</p>
-                  {hasMoreContent ? (
-                    <button
-                      type="button"
-                      className="content-toggle"
-                      onClick={() => toggleExpanded(featuredTodayItem.id)}
-                      aria-expanded={isExpanded}
-                    >
-                      {isExpanded ? "Show less" : "Show more"}
-                    </button>
-                  ) : null}
-                  <div className="links">
-                    <a href={featuredTodayItem.url} target="_blank" rel="noreferrer">
-                      Source
-                    </a>
-                    <a href={articleLink} target="_blank" rel="noreferrer">
-                      Local article
-                    </a>
-                  </div>
-                </div>
-              </article>
-            );
-          })()}
+          <article className="card featured-card">
+            {featuredCardData.image ? (
+              <img className="card-image" src={featuredCardData.image} alt={featuredTodayItem.title} loading="lazy" />
+            ) : null}
+            <div className="card-body">
+              <div className="meta">
+                <span>
+                  {formatDateTime(
+                    featuredTodayItem.published_date,
+                    featuredTodayItem.published_time,
+                    featuredTodayItem.published_at,
+                  )}
+                </span>
+                <span>{featuredTodayItem.source}</span>
+                <span className="flag">{featuredTodayItem.rights_flag}</span>
+                <span
+                  className={`interest-pill ${featuredCardData.interest === "interesting" ? "interest-good" : "interest-bad"}`}
+                  title={featuredCardData.interest === "interesting" ? "Article looks interesting" : "Article looks less interesting"}
+                >
+                  {featuredCardData.interest === "interesting" ? "Interesting" : "Not interesting"}
+                </span>
+              </div>
+              <h3>{featuredTodayItem.title}</h3>
+              <p className="excerpt">{featuredCardData.contentToShow}</p>
+              {featuredCardData.hasMoreContent ? (
+                <button
+                  type="button"
+                  className="content-toggle"
+                  onClick={() => toggleExpanded(featuredTodayItem.id)}
+                  aria-expanded={featuredCardData.isExpanded}
+                >
+                  {featuredCardData.isExpanded ? "Show less" : "Show more"}
+                </button>
+              ) : null}
+              <div className="links">
+                <a href={featuredTodayItem.url} target="_blank" rel="noreferrer">
+                  Source
+                </a>
+                <a href={featuredCardData.articleLink} target="_blank" rel="noreferrer">
+                  Local article
+                </a>
+              </div>
+            </div>
+          </article>
         </section>
       ) : null}
 
@@ -744,47 +770,40 @@ function App(): JSX.Element {
 
       <section className="grid">
         {nonFeaturedItems.map((item) => {
-          const image = cardImage(item);
-          const articleLink = `/${item.article_path}/article.md`;
-          const shortContent = excerpt(item.content);
-          const fullContent = sanitizeContentForDisplay(item.content);
-          const interest = classifyArticleInterest(item);
-          const isExpanded = expandedItemIds.has(item.id);
-          const hasMoreContent = fullContent.length > shortContent.length;
-          const contentToShow = isExpanded ? fullContent : shortContent;
+          const cardData = buildCardRenderData(item, expandedItemIds);
 
           return (
             <article key={item.id} className="card">
-              {image ? <img className="card-image" src={image} alt={item.title} loading="lazy" /> : null}
+              {cardData.image ? <img className="card-image" src={cardData.image} alt={item.title} loading="lazy" /> : null}
               <div className="card-body">
                 <div className="meta">
                   <span>{formatDateTime(item.published_date, item.published_time, item.published_at)}</span>
                   <span>{item.source}</span>
                   <span className="flag">{item.rights_flag}</span>
                   <span
-                    className={`interest-pill ${interest === "interesting" ? "interest-good" : "interest-bad"}`}
-                    title={interest === "interesting" ? "Article looks interesting" : "Article looks less interesting"}
+                    className={`interest-pill ${cardData.interest === "interesting" ? "interest-good" : "interest-bad"}`}
+                    title={cardData.interest === "interesting" ? "Article looks interesting" : "Article looks less interesting"}
                   >
-                    {interest === "interesting" ? "Interesting" : "Not interesting"}
+                    {cardData.interest === "interesting" ? "Interesting" : "Not interesting"}
                   </span>
                 </div>
                 <h3>{item.title}</h3>
-                <p className="excerpt">{contentToShow}</p>
-                {hasMoreContent ? (
+                <p className="excerpt">{cardData.contentToShow}</p>
+                {cardData.hasMoreContent ? (
                   <button
                     type="button"
                     className="content-toggle"
                     onClick={() => toggleExpanded(item.id)}
-                    aria-expanded={isExpanded}
+                    aria-expanded={cardData.isExpanded}
                   >
-                    {isExpanded ? "Show less" : "Show more"}
+                    {cardData.isExpanded ? "Show less" : "Show more"}
                   </button>
                 ) : null}
                 <div className="links">
                   <a href={item.url} target="_blank" rel="noreferrer">
                     Source
                   </a>
-                  <a href={articleLink} target="_blank" rel="noreferrer">
+                  <a href={cardData.articleLink} target="_blank" rel="noreferrer">
                     Local article
                   </a>
                 </div>
