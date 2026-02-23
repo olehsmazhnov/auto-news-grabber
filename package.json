@@ -12,6 +12,8 @@
     "build": "npm run build:backend && npm run build:viewer",
     "scrape": "npm run build:backend --silent && node dist/scrape_news.js --config backend/sources.json --output data/news.json --target-language uk --verbose",
     "backfill:photos": "npm run build:backend --silent && node dist/backfill_missing_photos.js --output data/news.json --latest-run data/latest_run.json --verbose",
+    "supabase:sync": "npm run build:backend --silent && node dist/sync_to_supabase.js --scope latest-run",
+    "supabase:sync:snapshot": "npm run build:backend --silent && node dist/sync_to_supabase.js --scope snapshot",
     "scrape:no-translate": "npm run build:backend --silent && node dist/scrape_news.js --config backend/sources.json --output data/news.json --target-language uk --disable-translation --verbose",
     "start": "npm run build --silent && node dist/server.js",
     "start:watch": "node --watch dist/server.js",

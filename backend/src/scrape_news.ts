@@ -1,5 +1,6 @@
 ﻿import { parseArgs } from "./utils/cli.js";
 import { log } from "./utils/log.js";
+import { backfillMissingPhotosForRun } from "./modules/photo-backfill.js";
 import { collectItems, saveOutput, translateItems } from "./scraper.js";
 import { loadSources } from "./utils/sources.js";
 
@@ -25,6 +26,23 @@ async function main(): Promise<void> {
     options.output,
     scrapedAt,
     collected.source_reports,
+    options.verbose,
+  );
+
+  const backfillSummary = await backfillMissingPhotosForRun({
+    outputPath: options.output,
+    runPath: run.run_path,
+    verbose: options.verbose,
+  });
+
+  log(
+    [
+      "Photo backfill finished:",
+      `missing_before=${backfillSummary.missing_before};`,
+      `updated_items=${backfillSummary.updated_items};`,
+      `updated_photos=${backfillSummary.updated_photos};`,
+      `remaining_missing=${backfillSummary.remaining_missing};`,
+    ].join(" "),
     options.verbose,
   );
 

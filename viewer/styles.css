@@ -52,6 +52,48 @@ a {
   color: var(--muted);
 }
 
+.header-actions {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.supabase-sync-button {
+  border: 1px solid #9c3e08;
+  background: linear-gradient(180deg, #c55113 0%, #a33f09 100%);
+  color: #fff;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.supabase-sync-button:hover:not(:disabled) {
+  background: linear-gradient(180deg, #d66120 0%, #b5480c 100%);
+}
+
+.supabase-sync-button:disabled {
+  opacity: 0.7;
+  cursor: progress;
+}
+
+.supabase-sync-status {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+
+.supabase-sync-status-success {
+  color: var(--ok-text);
+}
+
+.supabase-sync-status-error {
+  color: var(--fail-text);
+}
+
 .status-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));

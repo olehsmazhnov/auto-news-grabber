@@ -89,6 +89,20 @@ type NewsItem = {
   photos: PhotoAsset[];
 };
 
+type SupabaseSyncResponse =
+  | {
+      ok: true;
+      scope: "latest_run" | "snapshot";
+      source_file: string;
+      selected_items: number;
+      unique_items: number;
+      submitted_rows: number;
+    }
+  | {
+      ok: false;
+      error?: string;
+    };
+
 const RETELLING_PREFIX_RE = /^Короткий переказ матеріалу з [^:\n]+:\s*/iu;
 
 type InterestLabel = "interesting" | "not_interesting";
@@ -440,6 +454,8 @@ function App(): JSX.Element {
   const [dailyHealth, setDailyHealth] = React.useState<DailyHealthReport[]>([]);
   const [error, setError] = React.useState("");
   const [expandedItemIds, setExpandedItemIds] = React.useState<Set<string>>(new Set());
+  const [supabaseSyncState, setSupabaseSyncState] = React.useState<"idle" | "saving" | "success" | "error">("idle");
+  const [supabaseSyncMessage, setSupabaseSyncMessage] = React.useState("");
 
   const toggleExpanded = React.useCallback((itemId: string): void => {
     setExpandedItemIds((prev) => {
@@ -451,6 +467,41 @@ function App(): JSX.Element {
       }
       return next;
     });
+  }, []);
+
+  const syncLatestRunToSupabase = React.useCallback(async (): Promise<void> => {
+    setSupabaseSyncState("saving");
+    setSupabaseSyncMessage("Saving latest run to Supabase...");
+
+    try {
+      const response = await fetch("/api/supabase/sync", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+        },
+        body: JSON.stringify({ scope: "latest_run" }),
+      });
+
+      let payload: SupabaseSyncResponse | null = null;
+      try {
+        payload = (await response.json()) as SupabaseSyncResponse;
+      } catch {
+        payload = null;
+      }
+
+      if (!response.ok || !payload?.ok) {
+        const details = payload && !payload.ok && payload.error ? `: ${payload.error}` : "";
+        throw new Error(`HTTP ${response.status}${details}`);
+      }
+
+      setSupabaseSyncState("success");
+      setSupabaseSyncMessage(
+        `Supabase sync complete. Unique posts: ${safeNumber(payload.unique_items)}. Submitted rows: ${safeNumber(payload.submitted_rows)}.`,
+      );
+    } catch (syncError) {
+      setSupabaseSyncState("error");
+      setSupabaseSyncMessage(`Supabase sync failed: ${String(syncError)}`);
+    }
   }, []);
 
   React.useEffect(() => {
@@ -621,6 +672,31 @@ function App(): JSX.Element {
       <header className="header">
         <h1>Auto News Viewer</h1>
         <p>Latest snapshot with run diagnostics and daily resource health.</p>
+        <div className="header-actions">
+          <button
+            type="button"
+            className="supabase-sync-button"
+            disabled={supabaseSyncState === "saving"}
+            onClick={() => {
+              void syncLatestRunToSupabase();
+            }}
+          >
+            {supabaseSyncState === "saving" ? "Saving..." : "Save latest run to Supabase"}
+          </button>
+          {supabaseSyncMessage ? (
+            <p
+              className={`supabase-sync-status ${
+                supabaseSyncState === "error"
+                  ? "supabase-sync-status-error"
+                  : supabaseSyncState === "success"
+                    ? "supabase-sync-status-success"
+                    : ""
+              }`}
+            >
+              {supabaseSyncMessage}
+            </p>
+          ) : null}
+        </div>
       </header>
 
       {error ? <div className="empty">{error}</div> : null}

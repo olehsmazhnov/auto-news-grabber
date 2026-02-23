@@ -179,6 +179,7 @@ const AUTO_BRANDS = new Set([
   "mansory",
   "tesla",
   "polestar",
+  "isuzu",
 ]);
 
 const AUTO_CONTEXT_TOKENS = new Set([
@@ -202,6 +203,9 @@ const AUTO_CONTEXT_TOKENS = new Set([
   "coupe",
   "wagon",
   "crossover",
+  "van",
+  "camper",
+  "campervan",
   "horsepower",
   "torque",
   "diesel",
@@ -268,6 +272,9 @@ const AUTOMOTIVE_VISUAL_HINTS = [
   "coupe",
   "wagon",
   "crossover",
+  "van",
+  "camper",
+  "campervan",
   "motorcycle",
   "motorbike",
   "bike",
@@ -303,6 +310,9 @@ const GENERIC_VEHICLE_HINTS = [
   "coupe",
   "wagon",
   "crossover",
+  "van",
+  "camper",
+  "campervan",
   "motorcycle",
   "motorbike",
   "bike",

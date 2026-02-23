@@ -8,3 +8,5 @@ export const MIN_ARTICLE_CHARS = 1_200;
 export const MAX_ARTICLE_PARAGRAPHS = 24;
 export const MAX_IMAGES_PER_NEWS = 2;
 export const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+export const IMAGE_FETCH_RETRY_ATTEMPTS = 3;
+export const IMAGE_FETCH_RETRY_BASE_DELAY_MS = 400;
