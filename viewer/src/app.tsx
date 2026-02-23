@@ -104,6 +104,11 @@ type SupabaseSyncResponse =
     };
 
 const RETELLING_PREFIX_RE = /^Короткий переказ матеріалу з [^:\n]+:\s*/iu;
+const AUTONEWS_PROMO_RE = /\bautonews\s+tracks\s+this\s+story\b/i;
+const CATEGORY_FEED_PROMO_RE = /\bfollow\s+the\s+category\s+feed\b/i;
+const COVERAGE_PROMO_RE = /\bongoing\s+automotive\s+coverage\b/i;
+const RELATED_RELEASES_PROMO_RE = /\bupdates\s+and\s+related\s+releases\b/i;
+const TRAILING_ELLIPSIS_RE = /(?:\.\.\.|\u2026)\s*$/u;
 
 type InterestLabel = "interesting" | "not_interesting";
 
@@ -138,7 +143,94 @@ function sanitizeContentForDisplay(content: string): string {
   if (!content) {
     return "";
   }
-  return content.replace(RETELLING_PREFIX_RE, "").trim();
+  const withoutPrefix = content.replace(RETELLING_PREFIX_RE, "").trim();
+  if (!withoutPrefix) {
+    return "";
+  }
+
+  return stripDisplayArtifacts(withoutPrefix);
+}
+
+function splitDisplayParagraphs(content: string): string[] {
+  return content
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.replace(/\s+/g, " ").trim())
+    .filter((paragraph) => paragraph.length > 0);
+}
+
+function isPromotionalDisplayParagraph(paragraph: string): boolean {
+  const normalized = paragraph.toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+
+  const hasAutoNewsLead = AUTONEWS_PROMO_RE.test(normalized);
+  const hasFeedPrompt = CATEGORY_FEED_PROMO_RE.test(normalized);
+  const hasCoverage = COVERAGE_PROMO_RE.test(normalized);
+  const hasRelatedReleases = RELATED_RELEASES_PROMO_RE.test(normalized);
+
+  if (hasAutoNewsLead && (hasFeedPrompt || hasCoverage || hasRelatedReleases)) {
+    return true;
+  }
+
+  if (hasFeedPrompt && hasRelatedReleases) {
+    return true;
+  }
+
+  return false;
+}
+
+function normalizeDisplayParagraphForDuplicateCheck(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/\u2026/g, "...")
+    .replace(/[^\p{L}\p{N}\s.]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isTruncatedDisplayDuplicate(previous: string, current: string): boolean {
+  if (!TRAILING_ELLIPSIS_RE.test(current.trim())) {
+    return false;
+  }
+
+  const normalizedCurrent = normalizeDisplayParagraphForDuplicateCheck(current)
+    .replace(/\.{3}\s*$/g, "")
+    .trim();
+  if (normalizedCurrent.length < 80) {
+    return false;
+  }
+
+  const normalizedPrevious = normalizeDisplayParagraphForDuplicateCheck(previous);
+  if (!normalizedPrevious) {
+    return false;
+  }
+
+  const comparePrefix = normalizedCurrent.slice(0, Math.min(normalizedCurrent.length, 160));
+  return normalizedPrevious.startsWith(comparePrefix);
+}
+
+function stripDisplayArtifacts(content: string): string {
+  const paragraphs = splitDisplayParagraphs(content);
+  if (paragraphs.length === 0) {
+    return "";
+  }
+
+  const cleaned: string[] = [];
+  for (const paragraph of paragraphs) {
+    if (isPromotionalDisplayParagraph(paragraph)) {
+      continue;
+    }
+
+    const previous = cleaned.length > 0 ? cleaned[cleaned.length - 1] : "";
+    if (previous && isTruncatedDisplayDuplicate(previous, paragraph)) {
+      continue;
+    }
+
+    cleaned.push(paragraph);
+  }
+
+  return cleaned.join("\n\n").trim();
 }
 
 function excerpt(content: string, maxChars = 360): string {

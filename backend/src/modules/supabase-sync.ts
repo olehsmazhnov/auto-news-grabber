@@ -3,6 +3,7 @@ import path from "node:path";
 import type { NewsItem, PhotoAsset, RightsFlag } from "../types.js";
 import { shortHash } from "../utils/slug.js";
 import { log } from "../utils/log.js";
+import { normalizeArticleContent } from "../utils/text.js";
 import { collectNewsKeys } from "./news-item-keys.js";
 
 const DEFAULT_DATA_DIR = "data";
@@ -277,7 +278,10 @@ function mapNewsItemToRow(item: NewsItem): SupabaseNewsRow {
   const primaryPhoto = pickPrimaryPhoto(photos);
   const publishedAt = resolvePublishedAt(item);
   const scrapedAt = normalizeIsoTimestampOrNull(item.scraped_at) ?? new Date().toISOString();
-  const summary = nonEmptyStringOrNull(item.content);
+  const normalizedContent = normalizeArticleContent(item.content);
+  const summary =
+    nonEmptyStringOrNull(normalizedContent) ??
+    nonEmptyStringOrNull(item.content);
 
   return {
     external_id: item.id,
@@ -287,7 +291,7 @@ function mapNewsItemToRow(item: NewsItem): SupabaseNewsRow {
     source_url: item.url,
     article_path: item.article_path,
     title: item.title,
-    excerpt: buildExcerpt(item.content),
+    excerpt: summary ? buildExcerpt(summary) : null,
     summary,
     content: summary ?? "",
     image: primaryPhoto?.local_path ?? null,

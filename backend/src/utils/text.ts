@@ -4,6 +4,97 @@ import { MAX_TRANSLATION_CHARS } from "../constants.js";
 const EMAIL_RE = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i;
 const CONTACT_LABEL_RE = /^(?:media|press)\s+contacts?\b[:\s-]*$/i;
 const PHONE_PREFIX_RE = /^(?:tel|phone|mobile|contact|tel\.?|telephone)[:\s-]*/i;
+const AUTONEWS_PROMO_RE = /\bautonews\s+tracks\s+this\s+story\b/i;
+const CATEGORY_FEED_PROMO_RE = /\bfollow\s+the\s+category\s+feed\b/i;
+const COVERAGE_PROMO_RE = /\bongoing\s+automotive\s+coverage\b/i;
+const RELATED_RELEASES_PROMO_RE = /\bupdates\s+and\s+related\s+releases\b/i;
+const TRAILING_ELLIPSIS_RE = /(?:\.\.\.|\u2026)\s*$/u;
+
+function splitIntoParagraphs(content: string): string[] {
+  return content
+    .split(/\n{2,}/)
+    .map((paragraph) => normalizeParagraph(paragraph))
+    .filter((paragraph) => paragraph.length > 0);
+}
+
+function isPromotionalParagraph(paragraph: string): boolean {
+  const normalized = normalizeText(paragraph).toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+
+  const hasAutoNewsLead = AUTONEWS_PROMO_RE.test(normalized);
+  const hasFeedPrompt = CATEGORY_FEED_PROMO_RE.test(normalized);
+  const hasCoverage = COVERAGE_PROMO_RE.test(normalized);
+  const hasRelatedReleases = RELATED_RELEASES_PROMO_RE.test(normalized);
+
+  if (hasAutoNewsLead && (hasFeedPrompt || hasCoverage || hasRelatedReleases)) {
+    return true;
+  }
+
+  if (hasFeedPrompt && hasRelatedReleases) {
+    return true;
+  }
+
+  return false;
+}
+
+function normalizeForDuplicateCheck(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/\u2026/g, "...")
+    .replace(/[^\p{L}\p{N}\s.]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isTruncatedDuplicateParagraph(previous: string, current: string): boolean {
+  if (!TRAILING_ELLIPSIS_RE.test(current.trim())) {
+    return false;
+  }
+
+  const normalizedCurrent = normalizeForDuplicateCheck(current)
+    .replace(/\.{3}\s*$/g, "")
+    .trim();
+  if (normalizedCurrent.length < 80) {
+    return false;
+  }
+
+  const normalizedPrevious = normalizeForDuplicateCheck(previous);
+  if (!normalizedPrevious) {
+    return false;
+  }
+
+  const comparePrefix = normalizedCurrent.slice(0, Math.min(normalizedCurrent.length, 160));
+  return normalizedPrevious.startsWith(comparePrefix);
+}
+
+function stripPromotionalAndDuplicateParagraphs(content: string): string {
+  if (!content) {
+    return "";
+  }
+
+  const paragraphs = splitIntoParagraphs(content);
+  if (paragraphs.length === 0) {
+    return "";
+  }
+
+  const cleaned: string[] = [];
+  for (const paragraph of paragraphs) {
+    if (isPromotionalParagraph(paragraph)) {
+      continue;
+    }
+
+    const previous = cleaned.length > 0 ? cleaned[cleaned.length - 1] : "";
+    if (previous && isTruncatedDuplicateParagraph(previous, paragraph)) {
+      continue;
+    }
+
+    cleaned.push(paragraph);
+  }
+
+  return cleaned.join("\n\n").trim();
+}
 
 function isLikelyPhoneLine(input: string): boolean {
   const trimmed = input.trim();
@@ -183,7 +274,8 @@ export function normalizeArticleContent(input: unknown): string {
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
-  return stripMediaContacts(normalized);
+  const withoutContacts = stripMediaContacts(normalized);
+  return stripPromotionalAndDuplicateParagraphs(withoutContacts);
 }
 
 export function trimContent(content: string, maxChars: number): string {
