@@ -5,7 +5,7 @@
       "name": "Toyota Global Newsroom",
       "source": "Toyota Global",
       "url": "https://global.toyota/en/newsroom/",
-      "feed_url": "https://global.toyota/en/rss.xml",
+      "feed_url": "https://global.toyota/export/en/allnews_rss.xml",
       "enabled": true,
       "max_items": 4,
       "rights_flag": "official_press",
@@ -27,7 +27,7 @@
       "name": "Kia America Newsroom RSS",
       "source": "Kia US",
       "url": "https://www.kiamedia.com/us/en/news",
-      "feed_url": "https://www.kiamedia.com/us/en/feed",
+      "feed_url": "https://www.kiamedia.com/us/en/rss/PressReleases/feed.rss",
       "enabled": true,
       "max_items": 4,
       "rights_flag": "official_press",
@@ -50,7 +50,7 @@
       "source": "Auto Express",
       "url": "https://www.autoexpress.co.uk/",
       "feed_url": "https://www.autoexpress.co.uk/rss.xml",
-      "enabled": true,
+      "enabled": false,
       "max_items": 4,
       "rights_flag": "quote_only",
       "license_text": "Quote-only source. Publish original summary with attribution and source link."
@@ -93,7 +93,7 @@
       "name": "Autocar India RSS",
       "source": "Autocar India",
       "url": "https://www.autocarindia.com/",
-      "feed_url": "https://www.autocarindia.com/RSS/rssfeed",
+      "feed_url": "https://www.autocarindia.com/rss/all",
       "enabled": true,
       "max_items": 4,
       "rights_flag": "quote_only",
@@ -131,6 +131,28 @@
       "max_items": 4,
       "rights_flag": "quote_only",
       "license_text": "Quote-only source. Publish original summary with attribution and source link."
+    },
+    {
+      "id": "S48",
+      "name": "Road & Track News",
+      "source": "Road & Track",
+      "url": "https://www.roadandtrack.com/",
+      "feed_url": "https://www.roadandtrack.com/rss/all.xml/",
+      "enabled": true,
+      "max_items": 4,
+      "rights_flag": "quote_only",
+      "license_text": "Quote-only source. Publish original summary with attribution and source link."
+    },
+    {
+      "id": "S49",
+      "name": "BMW Group Global RSS",
+      "source": "BMW Group",
+      "url": "https://www.press.bmwgroup.com/global",
+      "feed_url": "https://www.press.bmwgroup.com/global/rss",
+      "enabled": true,
+      "max_items": 4,
+      "rights_flag": "official_press",
+      "license_text": "Use factual information with attribution. Check media asset usage terms before publishing photos."
     }
   ]
 }
