@@ -103,6 +103,80 @@ type SupabaseSyncResponse =
       error?: string;
     };
 
+type ScrapeRunResponse =
+  | {
+      ok: true;
+      run: RunSummary;
+      backfill: {
+        run_path: string;
+        scanned_items: number;
+        missing_before: number;
+        updated_items: number;
+        updated_photos: number;
+        synced_snapshot_items: number;
+        remaining_missing: number;
+      };
+      collected_items: number;
+      translated_items: number;
+    }
+  | {
+      ok: false;
+      error?: string;
+      status?: ScrapeStatusSnapshot;
+    };
+
+type ScrapeRunStateValue = "idle" | "running" | "success" | "error";
+
+type ScrapeProgressStage =
+  | "idle"
+  | "initializing"
+  | "loading_sources"
+  | "collecting"
+  | "translating"
+  | "saving"
+  | "backfilling"
+  | "completed"
+  | "failed";
+
+type ScrapeStatusSnapshot = {
+  state: ScrapeRunStateValue;
+  stage: ScrapeProgressStage;
+  progress_percent: number;
+  message: string;
+  started_at: string;
+  updated_at: string;
+  finished_at: string;
+  run_id: string;
+  error: string;
+  collected_items: number;
+  translated_items: number;
+  backfilled_photos: number;
+};
+
+type ScrapeStatusResponse =
+  | {
+      ok: true;
+      status: ScrapeStatusSnapshot;
+    }
+  | {
+      ok: false;
+      error?: string;
+    };
+
+const SCRAPE_STATUS_POLL_INTERVAL_MS = 1000;
+
+const SCRAPE_STAGE_LABELS: Record<ScrapeProgressStage, string> = {
+  idle: "Idle",
+  initializing: "Initializing",
+  loading_sources: "Loading sources",
+  collecting: "Collecting feed items",
+  translating: "Translating content",
+  saving: "Saving output",
+  backfilling: "Backfilling photos",
+  completed: "Completed",
+  failed: "Failed",
+};
+
 const RETELLING_PREFIX_RE = /^Короткий переказ матеріалу з [^:\n]+:\s*/iu;
 const AUTONEWS_PROMO_RE = /\bautonews\s+tracks\s+this\s+story\b/i;
 const CATEGORY_FEED_PROMO_RE = /\bfollow\s+the\s+category\s+feed\b/i;
@@ -137,6 +211,93 @@ function safeNumber(value: unknown): number {
     return 0;
   }
   return Math.trunc(value);
+}
+
+function clampPercent(value: unknown): number {
+  const numeric = safeNumber(value);
+  if (numeric <= 0) {
+    return 0;
+  }
+  if (numeric >= 100) {
+    return 100;
+  }
+  return numeric;
+}
+
+function stageLabel(stage: ScrapeProgressStage): string {
+  return SCRAPE_STAGE_LABELS[stage] ?? SCRAPE_STAGE_LABELS.idle;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isScrapeStage(value: unknown): value is ScrapeProgressStage {
+  return (
+    value === "idle" ||
+    value === "initializing" ||
+    value === "loading_sources" ||
+    value === "collecting" ||
+    value === "translating" ||
+    value === "saving" ||
+    value === "backfilling" ||
+    value === "completed" ||
+    value === "failed"
+  );
+}
+
+function isScrapeRunState(value: unknown): value is ScrapeRunStateValue {
+  return value === "idle" || value === "running" || value === "success" || value === "error";
+}
+
+function toSafeText(value: unknown): string {
+  if (typeof value !== "string") {
+    return "";
+  }
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function parseScrapeStatusSnapshot(value: unknown): ScrapeStatusSnapshot | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  if (!isScrapeRunState(value.state) || !isScrapeStage(value.stage)) {
+    return null;
+  }
+
+  return {
+    state: value.state,
+    stage: value.stage,
+    progress_percent: clampPercent(value.progress_percent),
+    message: toSafeText(value.message),
+    started_at: toSafeText(value.started_at),
+    updated_at: toSafeText(value.updated_at),
+    finished_at: toSafeText(value.finished_at),
+    run_id: toSafeText(value.run_id),
+    error: toSafeText(value.error),
+    collected_items: safeNumber(value.collected_items),
+    translated_items: safeNumber(value.translated_items),
+    backfilled_photos: safeNumber(value.backfilled_photos),
+  };
+}
+
+function initialRunningScrapeStatus(): ScrapeStatusSnapshot {
+  const now = new Date().toISOString();
+  return {
+    state: "running",
+    stage: "initializing",
+    progress_percent: 0,
+    message: "Starting scrape...",
+    started_at: now,
+    updated_at: now,
+    finished_at: "",
+    run_id: "",
+    error: "",
+    collected_items: 0,
+    translated_items: 0,
+    backfilled_photos: 0,
+  };
 }
 
 function sanitizeContentForDisplay(content: string): string {
@@ -548,6 +709,10 @@ function App(): JSX.Element {
   const [expandedItemIds, setExpandedItemIds] = React.useState<Set<string>>(new Set());
   const [supabaseSyncState, setSupabaseSyncState] = React.useState<"idle" | "saving" | "success" | "error">("idle");
   const [supabaseSyncMessage, setSupabaseSyncMessage] = React.useState("");
+  const [scrapeRunState, setScrapeRunState] = React.useState<"idle" | "running" | "success" | "error">("idle");
+  const [scrapeRunMessage, setScrapeRunMessage] = React.useState("");
+  const [scrapeProgress, setScrapeProgress] = React.useState<ScrapeStatusSnapshot | null>(null);
+  const scrapeStatusPollRef = React.useRef<number | null>(null);
 
   const toggleExpanded = React.useCallback((itemId: string): void => {
     setExpandedItemIds((prev) => {
@@ -559,6 +724,77 @@ function App(): JSX.Element {
       }
       return next;
     });
+  }, []);
+
+  const clearScrapeStatusPolling = React.useCallback((): void => {
+    if (scrapeStatusPollRef.current === null) {
+      return;
+    }
+
+    window.clearInterval(scrapeStatusPollRef.current);
+    scrapeStatusPollRef.current = null;
+  }, []);
+
+  const fetchScrapeStatus = React.useCallback(async (): Promise<ScrapeStatusSnapshot | null> => {
+    try {
+      const response = await fetch(`/api/scrape/status?t=${Date.now()}`);
+      if (!response.ok) {
+        return null;
+      }
+
+      const payload = (await response.json()) as unknown;
+      if (!isRecord(payload) || payload.ok !== true) {
+        return null;
+      }
+
+      const status = parseScrapeStatusSnapshot(payload.status);
+      if (!status) {
+        return null;
+      }
+
+      setScrapeProgress(status);
+      return status;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const startScrapeStatusPolling = React.useCallback((): void => {
+    clearScrapeStatusPolling();
+    void fetchScrapeStatus();
+
+    scrapeStatusPollRef.current = window.setInterval(() => {
+      void fetchScrapeStatus();
+    }, SCRAPE_STATUS_POLL_INTERVAL_MS);
+  }, [clearScrapeStatusPolling, fetchScrapeStatus]);
+
+  const loadAll = React.useCallback(async (): Promise<void> => {
+    try {
+      const newsResponse = await fetch(`/data/news.json?t=${Date.now()}`);
+      if (!newsResponse.ok) {
+        throw new Error(`HTTP ${newsResponse.status}`);
+      }
+
+      const [
+        newsData,
+        latestRunData,
+        runHistoryData,
+        dailyHealthData,
+      ] = await Promise.all([
+        newsResponse.json() as Promise<NewsItem[]>,
+        fetchJsonOrNull<RunSummary>(`/data/latest_run.json?t=${Date.now()}`),
+        fetchJsonOrNull<RunHistorySnapshot>(`/data/run_history.json?t=${Date.now()}`),
+        fetchJsonOrNull<DailyHealthSnapshot>(`/data/daily_health.json?t=${Date.now()}`),
+      ]);
+
+      setItems(Array.isArray(newsData) ? sortNewsNewestFirst(newsData) : []);
+      setLatestRun(latestRunData);
+      setRecentRuns(Array.isArray(runHistoryData?.runs) ? runHistoryData.runs.slice(0, 10) : []);
+      setDailyHealth(Array.isArray(dailyHealthData?.days) ? dailyHealthData.days.slice(0, 7) : []);
+      setError("");
+    } catch (err) {
+      setError(`Failed to load news: ${String(err)}`);
+    }
   }, []);
 
   const syncLatestRunToSupabase = React.useCallback(async (): Promise<void> => {
@@ -596,49 +832,78 @@ function App(): JSX.Element {
     }
   }, []);
 
-  React.useEffect(() => {
-    let mounted = true;
+  const runNewScrape = React.useCallback(async (): Promise<void> => {
+    setScrapeRunState("running");
+    setScrapeRunMessage("Running scrape and photo backfill...");
+    setScrapeProgress(initialRunningScrapeStatus());
+    startScrapeStatusPolling();
 
-    async function loadAll(): Promise<void> {
+    try {
+      const response = await fetch("/api/scrape/run", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+        },
+        body: JSON.stringify({}),
+      });
+
+      let payload: ScrapeRunResponse | null = null;
       try {
-        const newsResponse = await fetch(`/data/news.json?t=${Date.now()}`);
-        if (!newsResponse.ok) {
-          throw new Error(`HTTP ${newsResponse.status}`);
-        }
-
-        const [
-          newsData,
-          latestRunData,
-          runHistoryData,
-          dailyHealthData,
-        ] = await Promise.all([
-          newsResponse.json() as Promise<NewsItem[]>,
-          fetchJsonOrNull<RunSummary>(`/data/latest_run.json?t=${Date.now()}`),
-          fetchJsonOrNull<RunHistorySnapshot>(`/data/run_history.json?t=${Date.now()}`),
-          fetchJsonOrNull<DailyHealthSnapshot>(`/data/daily_health.json?t=${Date.now()}`),
-        ]);
-
-        if (!mounted) {
-          return;
-        }
-
-        setItems(Array.isArray(newsData) ? sortNewsNewestFirst(newsData) : []);
-        setLatestRun(latestRunData);
-        setRecentRuns(Array.isArray(runHistoryData?.runs) ? runHistoryData.runs.slice(0, 10) : []);
-        setDailyHealth(Array.isArray(dailyHealthData?.days) ? dailyHealthData.days.slice(0, 7) : []);
-        setError("");
-      } catch (err) {
-        if (mounted) {
-          setError(`Failed to load news: ${String(err)}`);
-        }
+        payload = (await response.json()) as ScrapeRunResponse;
+      } catch {
+        payload = null;
       }
-    }
 
+      if (!response.ok || !payload?.ok) {
+        if (payload && !payload.ok) {
+          const status = parseScrapeStatusSnapshot(payload.status);
+          if (status) {
+            setScrapeProgress(status);
+          }
+        }
+        const details = payload && !payload.ok && payload.error ? `: ${payload.error}` : "";
+        throw new Error(`HTTP ${response.status}${details}`);
+      }
+
+      setScrapeRunState("success");
+      setScrapeRunMessage(
+        `Scrape complete. Run: ${payload.run.run_id}. Fresh: ${safeNumber(payload.run.total_items)}. Backfilled photos: ${safeNumber(payload.backfill.updated_photos)}.`,
+      );
+      await loadAll();
+    } catch (scrapeError) {
+      setScrapeRunState("error");
+      setScrapeRunMessage(`Scrape failed: ${String(scrapeError)}`);
+    } finally {
+      clearScrapeStatusPolling();
+      await fetchScrapeStatus();
+    }
+  }, [clearScrapeStatusPolling, fetchScrapeStatus, loadAll, startScrapeStatusPolling]);
+
+  React.useEffect(() => {
     void loadAll();
-    return () => {
-      mounted = false;
+  }, [loadAll]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const syncInitialScrapeStatus = async (): Promise<void> => {
+      const status = await fetchScrapeStatus();
+      if (cancelled || !status) {
+        return;
+      }
+
+      if (status.state === "running") {
+        startScrapeStatusPolling();
+      }
     };
-  }, []);
+
+    void syncInitialScrapeStatus();
+
+    return () => {
+      cancelled = true;
+      clearScrapeStatusPolling();
+    };
+  }, [clearScrapeStatusPolling, fetchScrapeStatus, startScrapeStatusPolling]);
 
   const latestTotals = runTotals(latestRun);
   const failedResources = failedRunResources(latestRun);
@@ -717,6 +982,12 @@ function App(): JSX.Element {
     return { byId, byName };
   }, [latestRun, recentRuns]);
 
+  const scrapeProgressPercent = clampPercent(scrapeProgress?.progress_percent);
+  const scrapeProgressStage = stageLabel(scrapeProgress?.stage ?? "initializing");
+  const scrapeProgressMessage = scrapeProgress?.message || "Scrape is running...";
+  const scrapeProgressError = scrapeProgress?.error || "";
+  const scrapeIsRunning = scrapeRunState === "running" || scrapeProgress?.state === "running";
+
   const renderResourceRefs = React.useCallback(
     (
       sources: Array<{
@@ -767,14 +1038,55 @@ function App(): JSX.Element {
         <div className="header-actions">
           <button
             type="button"
+            className="scrape-run-button"
+            disabled={scrapeIsRunning || supabaseSyncState === "saving"}
+            onClick={() => {
+              void runNewScrape();
+            }}
+          >
+            {scrapeIsRunning
+              ? `Scraping ${scrapeProgressPercent}%`
+              : "Run new unique scrape"}
+          </button>
+          <button
+            type="button"
             className="supabase-sync-button"
-            disabled={supabaseSyncState === "saving"}
+            disabled={supabaseSyncState === "saving" || scrapeIsRunning}
             onClick={() => {
               void syncLatestRunToSupabase();
             }}
           >
             {supabaseSyncState === "saving" ? "Saving..." : "Save latest run to Supabase"}
           </button>
+          {scrapeRunMessage ? (
+            <p
+              className={`scrape-run-status ${
+                scrapeRunState === "error"
+                  ? "scrape-run-status-error"
+                  : scrapeRunState === "success"
+                    ? "scrape-run-status-success"
+                    : ""
+              }`}
+            >
+              {scrapeRunMessage}
+            </p>
+          ) : null}
+          {scrapeIsRunning ? (
+            <div className="scrape-loader" role="status" aria-live="polite" aria-atomic="true">
+              <div className="scrape-loader-head">
+                <span className="scrape-loader-spinner" aria-hidden="true" />
+                <span className="scrape-loader-message">{scrapeProgressMessage}</span>
+                <strong className="scrape-loader-percent">{scrapeProgressPercent}%</strong>
+              </div>
+              <div className="scrape-loader-track" aria-hidden="true">
+                <span className="scrape-loader-fill" style={{ width: `${scrapeProgressPercent}%` }} />
+              </div>
+              <p className="scrape-loader-stage">
+                Stage: {scrapeProgressStage}
+                {scrapeProgressError ? ` | ${scrapeProgressError}` : ""}
+              </p>
+            </div>
+          ) : null}
           {supabaseSyncMessage ? (
             <p
               className={`supabase-sync-status ${

@@ -5,6 +5,7 @@ import {
   MIN_ARTICLE_CHARS,
 } from "./constants.js";
 import type {
+  CollectItemsProgressHandler,
   CollectItemsResult,
   CollectedNewsItem,
   NewsItem,
@@ -12,6 +13,7 @@ import type {
   RunHistorySnapshot,
   ResourceRunReport,
   Source,
+  TranslateItemsProgressHandler,
   TranslateItemsOptions,
 } from "./types.js";
 import { createRunId, toDateOnly, toTimeOnly } from "./utils/date.js";
@@ -63,80 +65,138 @@ import {
   readJsonFileSafe,
 } from "./modules/seen-news-index.js";
 
+function reportCollectProgress(
+  handler: CollectItemsProgressHandler | undefined,
+  totalSources: number,
+  completedSources: number,
+  currentSourceId: string,
+  currentSourceName: string,
+): void {
+  if (!handler) {
+    return;
+  }
+
+  handler({
+    total_sources: totalSources,
+    completed_sources: completedSources,
+    current_source_id: currentSourceId,
+    current_source_name: currentSourceName,
+  });
+}
+
+function reportTranslateProgress(
+  handler: TranslateItemsProgressHandler | undefined,
+  totalItems: number,
+  completedItems: number,
+  currentItemTitle: string,
+): void {
+  if (!handler) {
+    return;
+  }
+
+  handler({
+    total_items: totalItems,
+    completed_items: completedItems,
+    current_item_title: currentItemTitle,
+  });
+}
+
 export async function collectItems(
   sources: Source[],
   scrapedAt: string,
   verbose: boolean,
+  onProgress?: CollectItemsProgressHandler,
 ): Promise<CollectItemsResult> {
   const parser = new Parser();
   const allItems: CollectedNewsItem[] = [];
   const sourceReports: ResourceRunReport[] = [];
+  const totalSources = sources.length;
+  let completedSources = 0;
 
   for (const source of sources) {
+    reportCollectProgress(
+      onProgress,
+      totalSources,
+      completedSources,
+      source.id,
+      source.name,
+    );
+
     log(`Scraping ${source.id} - ${source.name}`, verbose);
     const sourceReport = createResourceRunReport(source);
     sourceReports.push(sourceReport);
 
-    let feed: Parser.Output<FeedItem>;
     try {
-      const xml = await fetchText(source.feedUrl);
-      feed = (await parser.parseString(xml)) as Parser.Output<FeedItem>;
-    } catch (error) {
-      sourceReport.status = "failed";
-      sourceReport.error = shortErrorMessage(error);
-      log(`Failed to parse feed ${source.feedUrl}: ${sourceReport.error}`, verbose);
-      continue;
-    }
-
-    const entries = Array.isArray(feed.items)
-      ? feed.items.slice(0, source.maxItems)
-      : [];
-    sourceReport.feed_entries = entries.length;
-
-    for (const entry of entries) {
-      const title = normalizeText(entry.title ?? "");
-      const url = normalizeText(entry.link ?? source.url);
-      if (!title || !url) {
+      let feed: Parser.Output<FeedItem>;
+      try {
+        const xml = await fetchText(source.feedUrl);
+        feed = (await parser.parseString(xml)) as Parser.Output<FeedItem>;
+      } catch (error) {
+        sourceReport.status = "failed";
+        sourceReport.error = shortErrorMessage(error);
+        log(`Failed to parse feed ${source.feedUrl}: ${sourceReport.error}`, verbose);
         continue;
       }
 
-      const feedContent = extractEntryText(entry);
-      const feedImageUrls = extractFeedImageUrls(entry as Record<string, unknown>);
+      const entries = Array.isArray(feed.items)
+        ? feed.items.slice(0, source.maxItems)
+        : [];
+      sourceReport.feed_entries = entries.length;
 
-      let articleContent = "";
-      let articleImageUrls: string[] = [];
-      const shouldFetchArticle =
-        feedContent.length < MIN_ARTICLE_CHARS || feedImageUrls.length === 0;
+      for (const entry of entries) {
+        const title = normalizeText(entry.title ?? "");
+        const url = normalizeText(entry.link ?? source.url);
+        if (!title || !url) {
+          continue;
+        }
 
-      if (shouldFetchArticle) {
-        const payload = await fetchArticlePayload(url);
-        articleContent = payload.content;
-        articleImageUrls = payload.imageUrls;
+        const feedContent = extractEntryText(entry);
+        const feedImageUrls = extractFeedImageUrls(entry as Record<string, unknown>);
+
+        let articleContent = "";
+        let articleImageUrls: string[] = [];
+        const shouldFetchArticle =
+          feedContent.length < MIN_ARTICLE_CHARS || feedImageUrls.length === 0;
+
+        if (shouldFetchArticle) {
+          const payload = await fetchArticlePayload(url);
+          articleContent = payload.content;
+          articleImageUrls = payload.imageUrls;
+        }
+
+        let content = selectBestContent(feedContent, articleContent);
+        if (source.rightsFlag === "quote_only") {
+          content = excerptBySentences(content, 10, 2200);
+        }
+        if (!content) {
+          continue;
+        }
+
+        const publishedAt = readDateFromFeedItem(entry);
+        allItems.push({
+          source_id: source.id,
+          title,
+          content,
+          url,
+          source: source.source || source.name,
+          published_at: publishedAt,
+          published_date: toDateOnly(publishedAt, scrapedAt),
+          published_time: toTimeOnly(publishedAt, scrapedAt),
+          rights_flag: source.rightsFlag,
+          license_text: source.licenseText,
+          feed_image_candidates: feedImageUrls,
+          article_image_candidates: articleImageUrls,
+        });
       }
-
-      let content = selectBestContent(feedContent, articleContent);
-      if (source.rightsFlag === "quote_only") {
-        content = excerptBySentences(content, 10, 2200);
-      }
-      if (!content) {
-        continue;
-      }
-
-      const publishedAt = readDateFromFeedItem(entry);
-      allItems.push({
-        source_id: source.id,
-        title,
-        content,
-        url,
-        source: source.source || source.name,
-        published_at: publishedAt,
-        published_date: toDateOnly(publishedAt, scrapedAt),
-        published_time: toTimeOnly(publishedAt, scrapedAt),
-        rights_flag: source.rightsFlag,
-        license_text: source.licenseText,
-        feed_image_candidates: feedImageUrls,
-        article_image_candidates: articleImageUrls,
-      });
+    } finally {
+      completedSources += 1;
+      reportCollectProgress(
+        onProgress,
+        totalSources,
+        completedSources,
+        source.id,
+        source.name,
+      );
     }
   }
 
@@ -158,9 +218,13 @@ export async function translateItems(
     targetLanguage,
     maxContentChars,
     verbose,
+    onProgress,
   } = options;
+  const totalItems = items.length;
+  let completedItems = 0;
 
   if (!translationEnabled) {
+    reportTranslateProgress(onProgress, totalItems, totalItems, "");
     return items.map((item) => ({
       ...item,
       title: normalizeText(item.title),
@@ -169,6 +233,7 @@ export async function translateItems(
   }
 
   const translated: CollectedNewsItem[] = [];
+  reportTranslateProgress(onProgress, totalItems, 0, "");
   for (const item of items) {
     log(`Translating: ${item.title.slice(0, 80)}`, verbose);
 
@@ -195,6 +260,9 @@ export async function translateItems(
       title: normalizeText(translatedTitle),
       content: trimContent(content, maxContentChars),
     });
+
+    completedItems += 1;
+    reportTranslateProgress(onProgress, totalItems, completedItems, item.title);
   }
 
   return translated;

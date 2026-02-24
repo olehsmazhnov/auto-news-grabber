@@ -1,47 +1,27 @@
-﻿import { parseArgs } from "./utils/cli.js";
+import { runScrapePipeline } from "./modules/scrape-runner.js";
+import { parseArgs } from "./utils/cli.js";
 import { log } from "./utils/log.js";
-import { backfillMissingPhotosForRun } from "./modules/photo-backfill.js";
-import { collectItems, saveOutput, translateItems } from "./scraper.js";
-import { loadSources } from "./utils/sources.js";
 
 async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
 
-  const sources = await loadSources(options.config, options.maxItemsPerSource);
-  log(`Loaded ${sources.length} sources`, options.verbose);
-
-  const scrapedAt = new Date().toISOString();
-  const collected = await collectItems(sources, scrapedAt, options.verbose);
-  log(`Collected ${collected.items.length} unique items`, options.verbose);
-
-  const translated = await translateItems(collected.items, {
-    translationEnabled: !options.disableTranslation,
-    targetLanguage: options.targetLanguage,
-    maxContentChars: options.maxContentChars,
-    verbose: options.verbose,
-  });
-
-  const run = await saveOutput(
-    translated,
-    options.output,
-    scrapedAt,
-    collected.source_reports,
-    options.verbose,
-  );
-
-  const backfillSummary = await backfillMissingPhotosForRun({
+  const result = await runScrapePipeline({
+    configPath: options.config,
     outputPath: options.output,
-    runPath: run.run_path,
+    targetLanguage: options.targetLanguage,
+    disableTranslation: options.disableTranslation,
+    maxItemsPerSource: options.maxItemsPerSource,
+    maxContentChars: options.maxContentChars,
     verbose: options.verbose,
   });
 
   log(
     [
       "Photo backfill finished:",
-      `missing_before=${backfillSummary.missing_before};`,
-      `updated_items=${backfillSummary.updated_items};`,
-      `updated_photos=${backfillSummary.updated_photos};`,
-      `remaining_missing=${backfillSummary.remaining_missing};`,
+      `missing_before=${result.backfill.missing_before};`,
+      `updated_items=${result.backfill.updated_items};`,
+      `updated_photos=${result.backfill.updated_photos};`,
+      `remaining_missing=${result.backfill.remaining_missing};`,
     ].join(" "),
     options.verbose,
   );
@@ -49,8 +29,8 @@ async function main(): Promise<void> {
   // eslint-disable-next-line no-console
   console.log(
     [
-      `Saved ${run.total_items} unique new items to ${options.output}`,
-      `(run: ${run.run_path}; collected: ${translated.length}; failed resources: ${run.resource_totals.failed_resources})`,
+      `Saved ${result.run.total_items} unique new items to ${options.output}`,
+      `(run: ${result.run.run_path}; collected: ${result.translated_items}; failed resources: ${result.run.resource_totals.failed_resources})`,
     ].join(" "),
   );
 }
@@ -60,3 +40,4 @@ main().catch((error) => {
   console.error(`Scrape failed: ${String(error)}`);
   process.exitCode = 1;
 });
+

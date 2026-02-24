@@ -44,7 +44,29 @@ export interface TranslateItemsOptions {
   targetLanguage: string;
   maxContentChars: number;
   verbose: boolean;
+  onProgress?: TranslateItemsProgressHandler;
 }
+
+export interface CollectItemsProgress {
+  total_sources: number;
+  completed_sources: number;
+  current_source_id: string;
+  current_source_name: string;
+}
+
+export type CollectItemsProgressHandler = (
+  progress: CollectItemsProgress,
+) => void;
+
+export interface TranslateItemsProgress {
+  total_items: number;
+  completed_items: number;
+  current_item_title: string;
+}
+
+export type TranslateItemsProgressHandler = (
+  progress: TranslateItemsProgress,
+) => void;
 
 export interface ResourceRunReport {
   source_id: string;

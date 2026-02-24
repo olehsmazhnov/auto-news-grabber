@@ -60,6 +60,26 @@ a {
   gap: 10px;
 }
 
+.scrape-run-button {
+  border: 1px solid #1e6a34;
+  background: linear-gradient(180deg, #2d8c45 0%, #1f6a33 100%);
+  color: #fff;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.scrape-run-button:hover:not(:disabled) {
+  background: linear-gradient(180deg, #34a050 0%, #247a3c 100%);
+}
+
+.scrape-run-button:disabled {
+  opacity: 0.7;
+  cursor: progress;
+}
+
 .supabase-sync-button {
   border: 1px solid #9c3e08;
   background: linear-gradient(180deg, #c55113 0%, #a33f09 100%);
@@ -84,6 +104,92 @@ a {
   margin: 0;
   font-size: 0.86rem;
   color: var(--muted);
+}
+
+.scrape-run-status {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+
+.scrape-loader {
+  flex: 1 1 100%;
+  min-width: min(100%, 320px);
+  border: 1px solid #d3ddcf;
+  border-radius: 12px;
+  padding: 9px 11px;
+  background: #f8fcf8;
+}
+
+.scrape-loader-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.scrape-loader-spinner {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #bfd3c4;
+  border-top-color: #22733b;
+  animation: scrape-loader-spin 0.9s linear infinite;
+  flex: 0 0 auto;
+}
+
+.scrape-loader-message {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.8rem;
+  color: #1e3a26;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.scrape-loader-percent {
+  font-size: 0.78rem;
+  color: #1f6a33;
+}
+
+.scrape-loader-track {
+  margin-top: 7px;
+  height: 8px;
+  border-radius: 999px;
+  background: #dbeadf;
+  overflow: hidden;
+}
+
+.scrape-loader-fill {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2f8f4a 0%, #56b870 100%);
+  transition: width 0.24s ease-out;
+}
+
+.scrape-loader-stage {
+  margin: 6px 0 0;
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+
+@keyframes scrape-loader-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.scrape-run-status-success {
+  color: var(--ok-text);
+}
+
+.scrape-run-status-error {
+  color: var(--fail-text);
 }
 
 .supabase-sync-status-success {

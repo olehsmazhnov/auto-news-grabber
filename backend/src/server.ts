@@ -2,11 +2,16 @@ import fs from "node:fs";
 import path from "node:path";
 import * as http from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { ScrapeProgressTracker } from "./modules/scrape-progress.js";
+import { runScrapePipeline } from "./modules/scrape-runner.js";
 import { parseSupabaseSyncScope, syncNewsToSupabase } from "./modules/supabase-sync.js";
 
 const port = Number.parseInt(process.env.PORT ?? "8000", 10) || 8000;
 const rootDir = process.cwd();
 const MAX_JSON_BODY_BYTES = 8 * 1024;
+const MAX_SCRAPE_ITEMS_PER_SOURCE = 30;
+const scrapeProgress = new ScrapeProgressTracker();
+let scrapeRunInFlight: Promise<unknown> | null = null;
 
 class BadRequestError extends Error {}
 
@@ -78,6 +83,36 @@ function isBadRequestError(error: unknown): boolean {
   return error instanceof BadRequestError;
 }
 
+function parseOptionalBoolean(value: unknown, field: string): boolean | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "boolean") {
+    throw new BadRequestError(`${field} must be a boolean`);
+  }
+  return value;
+}
+
+function parseOptionalPositiveInteger(
+  value: unknown,
+  field: string,
+  maxValue: number,
+): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "number" || !Number.isFinite(value) || !Number.isInteger(value)) {
+    throw new BadRequestError(`${field} must be an integer`);
+  }
+  if (value <= 0) {
+    throw new BadRequestError(`${field} must be > 0`);
+  }
+  if (value > maxValue) {
+    throw new BadRequestError(`${field} must be <= ${maxValue}`);
+  }
+  return value;
+}
+
 async function readRequestBody(req: IncomingMessage, maxBytes: number): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
@@ -146,6 +181,75 @@ async function handleSupabaseSync(req: IncomingMessage, res: ServerResponse): Pr
   }
 }
 
+async function handleScrapeRun(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const method = req.method ?? "GET";
+  if (method !== "POST") {
+    sendJson(res, 405, { ok: false, error: "Method not allowed" });
+    return;
+  }
+
+  if (scrapeProgress.isRunning() || scrapeRunInFlight) {
+    sendJson(res, 409, {
+      ok: false,
+      error: "Scrape run is already in progress",
+      status: scrapeProgress.snapshot(),
+    });
+    return;
+  }
+
+  let runStarted = false;
+  try {
+    const payload = await readJsonBody(req, MAX_JSON_BODY_BYTES);
+    const maxItemsPerSource = parseOptionalPositiveInteger(
+      payload.max_items_per_source,
+      "max_items_per_source",
+      MAX_SCRAPE_ITEMS_PER_SOURCE,
+    );
+    const disableTranslation = parseOptionalBoolean(
+      payload.disable_translation,
+      "disable_translation",
+    );
+    const verbose = parseOptionalBoolean(payload.verbose, "verbose");
+
+    scrapeProgress.start();
+    runStarted = true;
+    const runPromise = runScrapePipeline({
+      maxItemsPerSource,
+      disableTranslation,
+      verbose,
+      onProgress: (progress) => {
+        scrapeProgress.update(progress);
+      },
+    });
+    scrapeRunInFlight = runPromise;
+    const result = await runPromise;
+    scrapeProgress.complete(result);
+
+    sendJson(res, 200, { ok: true, ...result });
+  } catch (error) {
+    if (runStarted) {
+      scrapeProgress.fail(toErrorMessage(error));
+    }
+    const statusCode = isBadRequestError(error) ? 400 : 500;
+    sendJson(res, statusCode, { ok: false, error: toErrorMessage(error) });
+  } finally {
+    scrapeRunInFlight = null;
+  }
+}
+
+async function handleScrapeStatus(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const method = req.method ?? "GET";
+  if (method !== "GET") {
+    sendJson(res, 405, { ok: false, error: "Method not allowed" });
+    return;
+  }
+
+  sendJson(res, 200, {
+    ok: true,
+    status: scrapeProgress.snapshot(),
+  });
+}
+
 async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const method = req.method ?? "GET";
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? `localhost:${port}`}`);
@@ -153,6 +257,16 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
 
   if (pathname === "/api/supabase/sync") {
     await handleSupabaseSync(req, res);
+    return;
+  }
+
+  if (pathname === "/api/scrape/run") {
+    await handleScrapeRun(req, res);
+    return;
+  }
+
+  if (pathname === "/api/scrape/status") {
+    await handleScrapeStatus(req, res);
     return;
   }
 
