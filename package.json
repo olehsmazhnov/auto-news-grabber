@@ -7,8 +7,8 @@
   "scripts": {
     "build:backend": "tsc -p tsconfig.json",
     "build:backend:watch": "tsc -p tsconfig.json --watch --preserveWatchOutput",
-    "build:viewer": "esbuild viewer/src/app.tsx --bundle --platform=browser --format=esm --target=es2020 --minify --outfile=dist/viewer/app.js",
-    "build:viewer:watch": "esbuild viewer/src/app.tsx --bundle --platform=browser --format=esm --target=es2020 --outfile=dist/viewer/app.js --watch",
+    "build:viewer": "esbuild viewer/src/main.tsx --bundle --platform=browser --format=esm --target=es2020 --minify --outfile=dist/viewer/app.js",
+    "build:viewer:watch": "esbuild viewer/src/main.tsx --bundle --platform=browser --format=esm --target=es2020 --outfile=dist/viewer/app.js --watch",
     "build": "npm run build:backend && npm run build:viewer",
     "scrape": "npm run build:backend --silent && node dist/scrape_news.js --config backend/sources.json --output data/news.json --target-language uk --verbose",
     "backfill:photos": "npm run build:backend --silent && node dist/backfill_missing_photos.js --output data/news.json --latest-run data/latest_run.json --verbose",

@@ -5,6 +5,9 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { ScrapeProgressTracker } from "./modules/scrape-progress.js";
 import { runScrapePipeline } from "./modules/scrape-runner.js";
 import { parseSupabaseSyncScope, syncNewsToSupabase } from "./modules/supabase-sync.js";
+import { loadEnvFromFile } from "./utils/env.js";
+
+loadEnvFromFile();
 
 const port = Number.parseInt(process.env.PORT ?? "8000", 10) || 8000;
 const rootDir = process.cwd();
@@ -13,7 +16,7 @@ const MAX_SCRAPE_ITEMS_PER_SOURCE = 30;
 const scrapeProgress = new ScrapeProgressTracker();
 let scrapeRunInFlight: Promise<unknown> | null = null;
 
-class BadRequestError extends Error {}
+class BadRequestError extends Error { }
 
 function contentType(filePath: string): string {
   const ext = path.extname(filePath).toLowerCase();
