@@ -153,6 +153,39 @@
       "max_items": 4,
       "rights_flag": "official_press",
       "license_text": "Use factual information with attribution. Check media asset usage terms before publishing photos."
+    },
+    {
+      "id": "S50",
+      "name": "Audi MediaCenter Press Releases",
+      "source": "Audi",
+      "url": "https://www.audi-mediacenter.com/en/",
+      "feed_url": "https://www.audi-mediacenter.com/en/feeds/press-releases",
+      "enabled": true,
+      "max_items": 4,
+      "rights_flag": "official_press",
+      "license_text": "Use factual information with attribution. Check media asset usage terms before publishing photos."
+    },
+    {
+      "id": "S51",
+      "name": "Daimler Truck Newsroom",
+      "source": "Daimler Truck",
+      "url": "https://www.daimlertruck.com/en/newsroom",
+      "feed_url": "https://www.daimlertruck.com/en/newsroom",
+      "enabled": true,
+      "max_items": 4,
+      "rights_flag": "official_press",
+      "license_text": "Use factual information with attribution. Check media asset usage terms before publishing photos."
+    },
+    {
+      "id": "S52",
+      "name": "Lexus Newsroom Europe",
+      "source": "Lexus",
+      "url": "https://newsroom.lexus.eu/",
+      "feed_url": "https://newsroom.lexus.eu/feed/en",
+      "enabled": true,
+      "max_items": 4,
+      "rights_flag": "official_press",
+      "license_text": "Use factual information with attribution. Check media asset usage terms before publishing photos."
     }
   ]
 }

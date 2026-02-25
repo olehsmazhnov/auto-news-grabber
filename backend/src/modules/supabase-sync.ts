@@ -530,7 +530,7 @@ export async function syncNewsToSupabase(
 
   if (removedBrokenPhotoRefs > 0) {
     log(
-      `Supabase sync skipped ${removedBrokenPhotoRefs} broken local photo reference(s)`,
+      `Supabase sync skipped ${removedBrokenPhotoRefs} unavailable/policy-filtered photo reference(s)`,
       verbose,
     );
   }

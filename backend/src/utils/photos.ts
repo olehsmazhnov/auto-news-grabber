@@ -4,6 +4,7 @@ import * as cheerio from "cheerio";
 import { MAX_IMAGES_PER_NEWS } from "../constants.js";
 import type { PhotoAsset } from "../types.js";
 import { fetchBinaryImage, fetchText, isHttpUrl } from "./http.js";
+import { violatesUnknownRightsEditedPolicy } from "./photo-policy.js";
 
 interface PhotoCandidate {
   url: string;
@@ -1387,6 +1388,16 @@ export async function resolvePhotoCandidates(
     if (candidateLooksNonPhotographic(candidateMetaText)) {
       return false;
     }
+    if (
+      violatesUnknownRightsEditedPolicy({
+        sourceUrl: candidate.url,
+        attributionUrl: candidate.attributionUrl,
+        credit: candidate.credit,
+        license: candidate.license,
+      })
+    ) {
+      return false;
+    }
     if (seen.has(candidate.url)) {
       return false;
     }
@@ -1427,6 +1438,17 @@ export async function downloadPhotoCandidates(
   for (const candidate of candidates) {
     if (out.length >= MAX_IMAGES_PER_NEWS) {
       break;
+    }
+
+    if (
+      violatesUnknownRightsEditedPolicy({
+        sourceUrl: candidate.url,
+        attributionUrl: candidate.attributionUrl,
+        credit: candidate.credit,
+        license: candidate.license,
+      })
+    ) {
+      continue;
     }
 
     if (seenUrls.has(candidate.url)) {

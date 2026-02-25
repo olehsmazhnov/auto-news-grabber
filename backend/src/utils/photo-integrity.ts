@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { PhotoAsset } from "../types.js";
+import { isPhotoAssetAllowedByRightsPolicy } from "./photo-policy.js";
 
 function nonEmptyString(value: unknown): string {
   if (typeof value !== "string") {
@@ -50,6 +51,7 @@ export async function filterPhotosWithExistingFiles(
     return [];
   }
 
+  const policyChecks = photos.map((photo) => isPhotoAssetAllowedByRightsPolicy(photo));
   const checks = await Promise.all(photos.map((photo) => isPhotoLocalFileAvailable(photo)));
-  return photos.filter((_, index) => checks[index]);
+  return photos.filter((_, index) => policyChecks[index] && checks[index]);
 }

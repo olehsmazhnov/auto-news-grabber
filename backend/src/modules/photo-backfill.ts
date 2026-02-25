@@ -231,7 +231,7 @@ export async function backfillMissingPhotosForRun(
 
     await saveArticleFileSet(item, absolutePath(item.article_path));
     log(
-      `Removed broken photo references (${currentPhotos.length - validPhotos.length}) for: ${item.title.slice(0, 90)}`,
+      `Removed unavailable/policy-filtered photo references (${currentPhotos.length - validPhotos.length}) for: ${item.title.slice(0, 90)}`,
       options.verbose,
     );
 

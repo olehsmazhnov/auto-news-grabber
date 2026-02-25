@@ -49,6 +49,7 @@ import {
 } from "./modules/output-storage.js";
 import {
   buildQuoteOnlyUkrainianRetelling,
+  extractFeedLikeItemsFromHtmlListing,
   extractEntryText,
   fetchArticlePayload,
   readDateFromFeedItem,
@@ -128,26 +129,43 @@ export async function collectItems(
     sourceReports.push(sourceReport);
 
     try {
-      let feed: Parser.Output<FeedItem>;
+      let feedRaw = "";
       try {
-        const xml = await fetchText(source.feedUrl);
-        feed = (await parser.parseString(xml)) as Parser.Output<FeedItem>;
+        feedRaw = await fetchText(source.feedUrl);
       } catch (error) {
         sourceReport.status = "failed";
         sourceReport.error = shortErrorMessage(error);
-        log(`Failed to parse feed ${source.feedUrl}: ${sourceReport.error}`, verbose);
+        log(`Failed to fetch feed ${source.feedUrl}: ${sourceReport.error}`, verbose);
         continue;
       }
 
-      const entries = Array.isArray(feed.items)
-        ? feed.items.slice(0, source.maxItems)
-        : [];
+      let entries: FeedItem[] = [];
+      try {
+        const feed = (await parser.parseString(feedRaw)) as Parser.Output<FeedItem>;
+        entries = Array.isArray(feed.items)
+          ? feed.items.slice(0, source.maxItems)
+          : [];
+      } catch (error) {
+        entries = extractFeedLikeItemsFromHtmlListing(feedRaw, source.feedUrl, source.maxItems);
+        if (entries.length === 0) {
+          sourceReport.status = "failed";
+          sourceReport.error = shortErrorMessage(error);
+          log(`Failed to parse feed ${source.feedUrl}: ${sourceReport.error}`, verbose);
+          continue;
+        }
+
+        log(
+          `Falling back to HTML listing parser for ${source.id} (${entries.length} item(s))`,
+          verbose,
+        );
+      }
+
       sourceReport.feed_entries = entries.length;
 
       for (const entry of entries) {
-        const title = normalizeText(entry.title ?? "");
+        let title = normalizeText(entry.title ?? "");
         const url = normalizeText(entry.link ?? source.url);
-        if (!title || !url) {
+        if (!url) {
           continue;
         }
 
@@ -157,10 +175,13 @@ export async function collectItems(
         let articleContent = "";
         let articleImageUrls: string[] = [];
         const shouldFetchArticle =
-          feedContent.length < MIN_ARTICLE_CHARS || feedImageUrls.length === 0;
+          !title || feedContent.length < MIN_ARTICLE_CHARS || feedImageUrls.length === 0;
 
         if (shouldFetchArticle) {
           const payload = await fetchArticlePayload(url);
+          if (!title) {
+            title = normalizeText(payload.title);
+          }
           articleContent = payload.content;
           articleImageUrls = payload.imageUrls;
         }
@@ -170,6 +191,9 @@ export async function collectItems(
           content = excerptBySentences(content, 10, 2200);
         }
         if (!content) {
+          continue;
+        }
+        if (!title) {
           continue;
         }
 

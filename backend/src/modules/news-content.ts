@@ -17,6 +17,7 @@ import { toIsoOrEmpty } from "../utils/date.js";
 export type FeedItem = Parser.Item & Record<string, unknown>;
 
 export interface ArticlePagePayload {
+  title: string;
   content: string;
   imageUrls: string[];
 }
@@ -34,6 +35,118 @@ function uniqueStrings(values: string[]): string[] {
   }
 
   return out;
+}
+
+function toAbsoluteHttpUrl(url: string, baseUrl: string): string {
+  const normalized = normalizeText(url);
+  if (!normalized || normalized.startsWith("#")) {
+    return "";
+  }
+  if (normalized.startsWith("javascript:") || normalized.startsWith("mailto:")) {
+    return "";
+  }
+
+  try {
+    return new URL(normalized, baseUrl).toString();
+  } catch {
+    return "";
+  }
+}
+
+function looksLikeArticleUrl(url: string): boolean {
+  const normalized = url.toLowerCase();
+  if (!normalized.startsWith("http://") && !normalized.startsWith("https://")) {
+    return false;
+  }
+
+  if (normalized.includes("/newsroom/pressrelease/")) {
+    return true;
+  }
+  if (normalized.includes("/newsroom/stories/")) {
+    return true;
+  }
+  if (normalized.includes("/news/")) {
+    return true;
+  }
+  if (normalized.includes("/press-release") || normalized.includes("/pressrelease")) {
+    return true;
+  }
+
+  if (/[_-]\d{5,}\.html?$/u.test(normalized)) {
+    return true;
+  }
+  if (/\/\d{4}\/\d{2}\//u.test(normalized)) {
+    return true;
+  }
+
+  return false;
+}
+
+function normalizeListingTitle(rawTitle: string): string {
+  const normalized = normalizeText(rawTitle);
+  if (!normalized) {
+    return "";
+  }
+
+  const lowValueTitles = new Set([
+    "more",
+    "read more",
+    "details",
+    "weiter",
+    "mehr",
+    "learn more",
+  ]);
+  if (lowValueTitles.has(normalized.toLowerCase())) {
+    return "";
+  }
+
+  if (normalized.length < 14) {
+    return "";
+  }
+
+  return normalized;
+}
+
+export function extractFeedLikeItemsFromHtmlListing(
+  html: string,
+  baseUrl: string,
+  maxItems: number,
+): FeedItem[] {
+  if (!html) {
+    return [];
+  }
+
+  const $ = cheerio.load(html);
+  const seenUrls = new Set<string>();
+  const items: FeedItem[] = [];
+  const safeMaxItems = Math.max(1, maxItems);
+
+  $("a[href]").each((_, element) => {
+    if (items.length >= safeMaxItems) {
+      return false;
+    }
+
+    const href = $(element).attr("href") ?? "";
+    const url = toAbsoluteHttpUrl(href, baseUrl);
+    if (!url || !looksLikeArticleUrl(url)) {
+      return undefined;
+    }
+
+    if (seenUrls.has(url)) {
+      return undefined;
+    }
+    seenUrls.add(url);
+
+    const title = normalizeListingTitle($(element).text());
+    items.push({
+      title,
+      link: url,
+    } as FeedItem);
+
+    return undefined;
+  });
+
+  return items;
 }
 
 export function readDateFromFeedItem(entry: FeedItem): string {
@@ -118,16 +231,44 @@ function extractLongArticleContentFromHtml(html: string): string {
   return normalizeArticleContent(paragraphs.join("\n\n"));
 }
 
+function extractArticleTitleFromHtml(html: string): string {
+  if (!html) {
+    return "";
+  }
+
+  const $ = cheerio.load(html);
+  const rawTitle = normalizeText(
+    $("meta[property='og:title']").attr("content")
+    || $("meta[name='twitter:title']").attr("content")
+    || $("article h1").first().text()
+    || $("main h1").first().text()
+    || $("h1").first().text()
+    || $("title").first().text()
+    || "",
+  );
+  if (!rawTitle) {
+    return "";
+  }
+
+  return normalizeText(
+    rawTitle
+      .replace(/\s+[|–-]\s+[^|–-]{2,60}$/u, "")
+      .trim(),
+  );
+}
+
 export async function fetchArticlePayload(url: string): Promise<ArticlePagePayload> {
   const body = await fetchHtmlOrEmpty(url);
   if (!body) {
     return {
+      title: "",
       content: "",
       imageUrls: [],
     };
   }
 
   return {
+    title: extractArticleTitleFromHtml(body),
     content: extractLongArticleContentFromHtml(body),
     imageUrls: extractHtmlImageUrls(body),
   };
