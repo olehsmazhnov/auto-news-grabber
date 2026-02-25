@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type { NewsItem, PhotoAsset } from "../types.js";
 import { log } from "../utils/log.js";
+import { filterPhotosWithExistingFiles } from "../utils/photo-integrity.js";
 import { downloadPhotoCandidates, resolvePhotoCandidates } from "../utils/photos.js";
 import { saveArticleFileSet, toRelativePath } from "./output-storage.js";
 
@@ -19,6 +20,8 @@ export interface BackfillSummary {
   run_path: string;
   scanned_items: number;
   missing_before: number;
+  cleaned_items: number;
+  removed_broken_photo_refs: number;
   updated_items: number;
   updated_photos: number;
   synced_snapshot_items: number;
@@ -45,6 +48,44 @@ async function writeJsonFile(filePath: string, value: unknown): Promise<void> {
 
 function hasPhotos(item: NewsItem): boolean {
   return Array.isArray(item.photos) && item.photos.length > 0;
+}
+
+function photoEquals(left: PhotoAsset, right: PhotoAsset): boolean {
+  return left.source_url === right.source_url
+    && left.local_path === right.local_path
+    && left.provider === right.provider
+    && left.license === right.license
+    && left.credit === right.credit
+    && left.attribution_url === right.attribution_url;
+}
+
+function photoListsEqual(left: PhotoAsset[], right: PhotoAsset[]): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  for (let index = 0; index < left.length; index += 1) {
+    const leftPhoto = left[index];
+    const rightPhoto = right[index];
+    if (!leftPhoto || !rightPhoto) {
+      return false;
+    }
+    if (!photoEquals(leftPhoto, rightPhoto)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function syncKeyForItem(item: NewsItem): string {
+  if (item.id) {
+    return `id:${item.id}`;
+  }
+  if (item.article_path) {
+    return `path:${item.article_path}`;
+  }
+  return `url:${item.url}`;
 }
 
 function collectUsedWikimediaUrls(items: NewsItem[]): Set<string> {
@@ -163,11 +204,53 @@ export async function backfillMissingPhotosForRun(
   const snapshotIndex = indexSnapshot(snapshotItems);
 
   const usedWikimediaUrls = collectUsedWikimediaUrls(runItems);
-  const missingBefore = runItems.filter((item) => !hasPhotos(item)).length;
+  const syncedSnapshotKeys = new Set<string>();
 
+  let runChanged = false;
+  let snapshotChanged = false;
+  let cleanedItems = 0;
+  let removedBrokenPhotoRefs = 0;
   let updatedItems = 0;
   let updatedPhotos = 0;
-  let syncedSnapshotItems = 0;
+
+  for (const item of runItems) {
+    if (!Array.isArray(item.photos) || item.photos.length === 0) {
+      continue;
+    }
+
+    const currentPhotos = item.photos;
+    const validPhotos = await filterPhotosWithExistingFiles(currentPhotos);
+    if (photoListsEqual(currentPhotos, validPhotos)) {
+      continue;
+    }
+
+    removedBrokenPhotoRefs += Math.max(currentPhotos.length - validPhotos.length, 0);
+    cleanedItems += 1;
+    item.photos = validPhotos;
+    runChanged = true;
+
+    await saveArticleFileSet(item, absolutePath(item.article_path));
+    log(
+      `Removed broken photo references (${currentPhotos.length - validPhotos.length}) for: ${item.title.slice(0, 90)}`,
+      options.verbose,
+    );
+
+    const snapshotItem = findSnapshotItem(item, snapshotIndex);
+    if (!snapshotItem) {
+      continue;
+    }
+
+    const snapshotPhotos = Array.isArray(snapshotItem.photos) ? snapshotItem.photos : [];
+    if (photoListsEqual(snapshotPhotos, validPhotos)) {
+      continue;
+    }
+
+    snapshotItem.photos = validPhotos;
+    snapshotChanged = true;
+    syncedSnapshotKeys.add(syncKeyForItem(snapshotItem));
+  }
+
+  const missingBefore = runItems.filter((item) => !hasPhotos(item)).length;
 
   for (const item of runItems) {
     if (hasPhotos(item)) {
@@ -180,12 +263,17 @@ export async function backfillMissingPhotosForRun(
     }
 
     item.photos = photos;
+    runChanged = true;
     await saveArticleFileSet(item, absolutePath(item.article_path));
 
     const snapshotItem = findSnapshotItem(item, snapshotIndex);
     if (snapshotItem) {
-      snapshotItem.photos = photos;
-      syncedSnapshotItems += 1;
+      const snapshotPhotos = Array.isArray(snapshotItem.photos) ? snapshotItem.photos : [];
+      if (!photoListsEqual(snapshotPhotos, photos)) {
+        snapshotItem.photos = photos;
+        snapshotChanged = true;
+        syncedSnapshotKeys.add(syncKeyForItem(snapshotItem));
+      }
     }
 
     for (const photo of photos) {
@@ -199,8 +287,10 @@ export async function backfillMissingPhotosForRun(
     log(`Backfilled photos for: ${item.title.slice(0, 90)}`, options.verbose);
   }
 
-  if (updatedItems > 0) {
+  if (runChanged) {
     await writeJsonFile(runNewsPath, runItems);
+  }
+  if (snapshotChanged) {
     await writeJsonFile(outputPathAbs, snapshotItems);
   }
 
@@ -210,9 +300,11 @@ export async function backfillMissingPhotosForRun(
     run_path: toRelativePath(runPathAbs),
     scanned_items: runItems.length,
     missing_before: missingBefore,
+    cleaned_items: cleanedItems,
+    removed_broken_photo_refs: removedBrokenPhotoRefs,
     updated_items: updatedItems,
     updated_photos: updatedPhotos,
-    synced_snapshot_items: syncedSnapshotItems,
+    synced_snapshot_items: syncedSnapshotKeys.size,
     remaining_missing: remainingMissing,
   };
 }

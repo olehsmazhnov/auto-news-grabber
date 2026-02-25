@@ -3,6 +3,7 @@ import path from "node:path";
 import type { NewsItem, PhotoAsset, RightsFlag } from "../types.js";
 import { shortHash } from "../utils/slug.js";
 import { log } from "../utils/log.js";
+import { filterPhotosWithExistingFiles } from "../utils/photo-integrity.js";
 import { normalizeArticleContent } from "../utils/text.js";
 import { collectNewsKeys } from "./news-item-keys.js";
 
@@ -273,8 +274,7 @@ function parseNewsItems(raw: unknown): NewsItem[] {
   return raw.filter((item): item is NewsItem => isNewsItem(item));
 }
 
-function mapNewsItemToRow(item: NewsItem): SupabaseNewsRow {
-  const photos = normalizePhotos(item);
+function mapNewsItemToRow(item: NewsItem, photos: PhotoAsset[]): SupabaseNewsRow {
   const primaryPhoto = pickPrimaryPhoto(photos);
   const publishedAt = resolvePublishedAt(item);
   const scrapedAt = normalizeIsoTimestampOrNull(item.scraped_at) ?? new Date().toISOString();
@@ -519,7 +519,21 @@ export async function syncNewsToSupabase(
   const rawItems = await readJsonFile<unknown>(sourceFileAbs);
   const selectedItems = parseNewsItems(rawItems);
   const uniqueItems = dedupeNewsItems(selectedItems);
-  const rows = uniqueItems.map((item) => mapNewsItemToRow(item));
+  const rows: SupabaseNewsRow[] = [];
+  let removedBrokenPhotoRefs = 0;
+  for (const item of uniqueItems) {
+    const normalizedPhotos = normalizePhotos(item);
+    const availablePhotos = await filterPhotosWithExistingFiles(normalizedPhotos);
+    removedBrokenPhotoRefs += Math.max(normalizedPhotos.length - availablePhotos.length, 0);
+    rows.push(mapNewsItemToRow(item, availablePhotos));
+  }
+
+  if (removedBrokenPhotoRefs > 0) {
+    log(
+      `Supabase sync skipped ${removedBrokenPhotoRefs} broken local photo reference(s)`,
+      verbose,
+    );
+  }
 
   log(
     `Preparing Supabase sync: selected=${selectedItems.length}, unique=${rows.length}, scope=${scope}`,

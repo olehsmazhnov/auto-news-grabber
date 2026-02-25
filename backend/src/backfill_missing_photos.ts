@@ -60,6 +60,8 @@ async function main(): Promise<void> {
       "Photo backfill finished:",
       `run=${summary.run_path};`,
       `missing_before=${summary.missing_before};`,
+      `cleaned_items=${summary.cleaned_items};`,
+      `removed_broken_photo_refs=${summary.removed_broken_photo_refs};`,
       `updated_items=${summary.updated_items};`,
       `updated_photos=${summary.updated_photos};`,
       `remaining_missing=${summary.remaining_missing};`,

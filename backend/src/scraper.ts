@@ -40,6 +40,7 @@ import {
   normalizeText,
   trimContent,
 } from "./utils/text.js";
+import { formatPostTranslationContent } from "./utils/post-translation-format.js";
 import { translateText } from "./utils/translation.js";
 import {
   createUniqueArticleFolderName,
@@ -250,7 +251,9 @@ export async function translateItems(
       verbose,
     );
 
-    let content = normalizeArticleContent(translatedContent);
+    let content = formatPostTranslationContent(
+      normalizeArticleContent(translatedContent),
+    );
     if (targetLanguage.toLowerCase() === "uk" && item.rights_flag === "quote_only") {
       content = buildQuoteOnlyUkrainianRetelling(item.url, content);
     }

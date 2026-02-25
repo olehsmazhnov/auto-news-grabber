@@ -19,6 +19,8 @@ async function main(): Promise<void> {
     [
       "Photo backfill finished:",
       `missing_before=${result.backfill.missing_before};`,
+      `cleaned_items=${result.backfill.cleaned_items};`,
+      `removed_broken_photo_refs=${result.backfill.removed_broken_photo_refs};`,
       `updated_items=${result.backfill.updated_items};`,
       `updated_photos=${result.backfill.updated_photos};`,
       `remaining_missing=${result.backfill.remaining_missing};`,
@@ -40,4 +42,3 @@ main().catch((error) => {
   console.error(`Scrape failed: ${String(error)}`);
   process.exitCode = 1;
 });
-

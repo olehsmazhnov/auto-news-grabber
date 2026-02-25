@@ -3,6 +3,7 @@ import {
   syncNewsToSupabase,
   type SupabaseSyncScope,
 } from "./modules/supabase-sync.js";
+import { loadEnvFromFile } from "./utils/env.js";
 
 interface CliOptions {
   scope: SupabaseSyncScope;
@@ -42,6 +43,8 @@ function parseArgs(argv: string[]): CliOptions {
 }
 
 async function main(): Promise<void> {
+  loadEnvFromFile();
+
   const options = parseArgs(process.argv.slice(2));
   const result = await syncNewsToSupabase({
     scope: options.scope,
