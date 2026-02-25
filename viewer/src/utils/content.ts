@@ -7,6 +7,15 @@ import {
     TRAILING_ELLIPSIS_RE,
 } from "../constants";
 
+const SOURCE_LINE_RE = /^\s*Джерело:\s*(https?:\/\/\S+)\s*$/iu;
+const TRAILING_URL_PUNCTUATION_RE = /[),.;!?]+$/g;
+const GENERIC_SUBDOMAIN_RE = /^(?:www|m|news|amp)$/i;
+
+export type SourceReference = {
+    url: string;
+    label: string;
+};
+
 function splitDisplayParagraphs(content: string): string[] {
     return content
         .split(/\n{2,}/)
@@ -89,6 +98,87 @@ function stripDisplayArtifacts(content: string): string {
     return cleaned.join("\n\n").trim();
 }
 
+function normalizeSourceUrl(rawUrl: string): string {
+    return rawUrl.trim().replace(TRAILING_URL_PUNCTUATION_RE, "");
+}
+
+function domainLabelFromUrl(url: string): string {
+    try {
+        const host = new URL(url).hostname.replace(/^www\./i, "");
+        const parts = host.split(".").filter((part) => part.length > 0);
+        if (parts.length === 0) {
+            return host;
+        }
+
+        if (parts.length === 1) {
+            return parts[0] ?? host;
+        }
+
+        const secondLevel = parts[parts.length - 2] ?? "";
+        const secondLevelLooksLikeSuffix =
+            secondLevel.length <= 3 && /^(co|com|org|net|gov|edu|ac)$/i.test(secondLevel);
+
+        if (secondLevelLooksLikeSuffix && parts.length >= 3) {
+            return parts[parts.length - 3] ?? secondLevel;
+        }
+
+        return secondLevel;
+    } catch {
+        return "source";
+    }
+}
+
+function removeSourceLine(content: string): string {
+    if (!content) {
+        return "";
+    }
+
+    const lines = content.split("\n");
+    const kept = lines.filter((line) => !SOURCE_LINE_RE.test(line.trim()));
+    return kept.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+export function extractSourceReference(content: string): SourceReference | null {
+    if (!content) {
+        return null;
+    }
+
+    const withoutPrefix = content.replace(RETELLING_PREFIX_RE, "").trim();
+    if (!withoutPrefix) {
+        return null;
+    }
+
+    const lines = withoutPrefix.split("\n");
+    for (let index = lines.length - 1; index >= 0; index -= 1) {
+        const line = lines[index]?.trim() ?? "";
+        const match = line.match(SOURCE_LINE_RE);
+        if (!match) {
+            continue;
+        }
+
+        const rawUrl = match[1] ?? "";
+        const normalizedUrl = normalizeSourceUrl(rawUrl);
+        if (!normalizedUrl) {
+            continue;
+        }
+
+        const label = domainLabelFromUrl(normalizedUrl);
+        if (!label || GENERIC_SUBDOMAIN_RE.test(label)) {
+            return {
+                url: normalizedUrl,
+                label: "source",
+            };
+        }
+
+        return {
+            url: normalizedUrl,
+            label,
+        };
+    }
+
+    return null;
+}
+
 export function sanitizeContentForDisplay(content: string): string {
     if (!content) {
         return "";
@@ -98,7 +188,7 @@ export function sanitizeContentForDisplay(content: string): string {
         return "";
     }
 
-    return stripDisplayArtifacts(withoutPrefix);
+    return stripDisplayArtifacts(removeSourceLine(withoutPrefix));
 }
 
 export function excerpt(content: string, maxChars = 360): string {

@@ -1,6 +1,6 @@
 import type { CardRenderData, NewsItem, ResourceReport, ResourceTotals, RunSummary } from "../types";
 import { publishedTimestamp, parseIsoTimestampOrZero } from "./date";
-import { sanitizeContentForDisplay, excerpt } from "./content";
+import { sanitizeContentForDisplay, excerpt, extractSourceReference } from "./content";
 import { classifyArticleInterest } from "./interest";
 import { safeNumber } from "./scrape-status";
 
@@ -115,6 +115,7 @@ export function buildCardRenderData(
     expandedItemIds: Set<string>,
     excerptMaxChars = 360,
 ): CardRenderData {
+    const sourceReference = extractSourceReference(item.content);
     const image = cardImage(item);
     const articleLink = `/${item.article_path}/article.md`;
     const shortContent = excerpt(item.content, excerptMaxChars);
@@ -131,5 +132,6 @@ export function buildCardRenderData(
         isExpanded,
         hasMoreContent,
         contentToShow,
+        sourceReference,
     };
 }

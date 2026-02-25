@@ -32,6 +32,14 @@ export function FeaturedCard({ item, cardData, onToggleExpanded }: FeaturedCardP
                     </div>
                     <h3>{item.title}</h3>
                     <p className="excerpt">{cardData.contentToShow}</p>
+                    {cardData.sourceReference ? (
+                        <p className="source-ref">
+                            Джерело:{" "}
+                            <a href={cardData.sourceReference.url} target="_blank" rel="noreferrer">
+                                {cardData.sourceReference.label}
+                            </a>
+                        </p>
+                    ) : null}
                     {cardData.hasMoreContent ? (
                         <button
                             type="button"

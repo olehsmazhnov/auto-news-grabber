@@ -174,4 +174,8 @@ export type CardRenderData = {
     isExpanded: boolean;
     hasMoreContent: boolean;
     contentToShow: string;
+    sourceReference: {
+        url: string;
+        label: string;
+    } | null;
 };
