@@ -12,6 +12,8 @@ import type {
 import { SCRAPE_STATUS_POLL_INTERVAL_MS } from "./constants";
 import {
   fetchJsonOrNull,
+  filterNewsItemsByDay,
+  buildDayFilterOptions,
   sortNewsNewestFirst,
   runTotals,
   failedRunResources,
@@ -28,6 +30,7 @@ import {
 } from "./utils";
 import {
   Header,
+  DayFilter,
   FeaturedCard,
   StatusGrid,
   DailyHealth,
@@ -39,6 +42,7 @@ export function App(): JSX.Element {
   const [latestRun, setLatestRun] = React.useState<RunSummary | null>(null);
   const [recentRuns, setRecentRuns] = React.useState<RunSummary[]>([]);
   const [dailyHealth, setDailyHealth] = React.useState<DailyHealthReport[]>([]);
+  const [selectedDayKey, setSelectedDayKey] = React.useState<string | null>(null);
   const [error, setError] = React.useState("");
   const [expandedItemIds, setExpandedItemIds] = React.useState<Set<string>>(new Set());
   const [supabaseSyncState, setSupabaseSyncState] = React.useState<"idle" | "saving" | "success" | "error">("idle");
@@ -236,6 +240,28 @@ export function App(): JSX.Element {
 
   const latestTotals = runTotals(latestRun);
   const failedResources = failedRunResources(latestRun);
+  const dayFilterOptions = React.useMemo(() => buildDayFilterOptions(items), [items]);
+
+  React.useEffect(() => {
+    if (dayFilterOptions.length === 0) {
+      setSelectedDayKey(null);
+      return;
+    }
+
+    if (
+      selectedDayKey &&
+      dayFilterOptions.some((option) => option.dayKey === selectedDayKey)
+    ) {
+      return;
+    }
+
+    setSelectedDayKey(dayFilterOptions[0]?.dayKey ?? null);
+  }, [dayFilterOptions, selectedDayKey]);
+
+  const filteredItems = React.useMemo(
+    () => filterNewsItemsByDay(items, selectedDayKey),
+    [items, selectedDayKey],
+  );
 
   const featuredTodayItem = React.useMemo(() => {
     const today = new Date();
@@ -273,10 +299,10 @@ export function App(): JSX.Element {
 
   const nonFeaturedItems = React.useMemo(() => {
     if (!featuredTodayItem) {
-      return items;
+      return filteredItems;
     }
-    return items.filter((item) => item.id !== featuredTodayItem.id);
-  }, [featuredTodayItem, items]);
+    return filteredItems.filter((item) => item.id !== featuredTodayItem.id);
+  }, [featuredTodayItem, filteredItems]);
 
   const featuredCardData = React.useMemo(() => {
     if (!featuredTodayItem) {
@@ -400,6 +426,17 @@ export function App(): JSX.Element {
 
       {!error && items.length === 0 ? (
         <div className="empty">No items yet. Run scrape first.</div>
+      ) : null}
+
+      {!error && items.length > 0 ? (
+        <>
+          <h2 className="posts-title">Posts</h2>
+          <DayFilter
+            options={dayFilterOptions}
+            selectedDayKey={selectedDayKey}
+            onSelectDay={setSelectedDayKey}
+          />
+        </>
       ) : null}
 
       <section className="grid">

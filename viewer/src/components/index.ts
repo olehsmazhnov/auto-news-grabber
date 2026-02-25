@@ -1,4 +1,5 @@
 export { DailyHealth } from "./DailyHealth";
+export { DayFilter } from "./DayFilter";
 export { FeaturedCard } from "./FeaturedCard";
 export { Header } from "./Header";
 export { NewsCard } from "./NewsCard";
