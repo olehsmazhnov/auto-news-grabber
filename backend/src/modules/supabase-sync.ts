@@ -1,11 +1,12 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { NewsItem, PhotoAsset, RightsFlag } from "../types.js";
-import { shortHash } from "../utils/slug.js";
+import { shortHash, slugify } from "../utils/slug.js";
 import { log } from "../utils/log.js";
 import { filterPhotosWithExistingFiles } from "../utils/photo-integrity.js";
 import { normalizeArticleContent } from "../utils/text.js";
 import { collectNewsKeys } from "./news-item-keys.js";
+import { listSupabaseExcludedItemIds } from "./supabase-excluded-items.js";
 
 const DEFAULT_DATA_DIR = "data";
 const DEFAULT_SUPABASE_SCHEMA = "public";
@@ -13,6 +14,7 @@ const DEFAULT_SUPABASE_TABLE = "news_items";
 const SUPABASE_REQUEST_TIMEOUT_MS = 30_000;
 const SUPABASE_BATCH_SIZE = 100;
 const MAX_ERROR_BODY_CHARS = 700;
+const MAX_ERROR_DETAILS_CHARS = 220;
 
 export type SupabaseSyncScope = "latest_run" | "snapshot";
 
@@ -43,6 +45,7 @@ interface SupabaseSyncConfig {
 }
 
 interface SupabaseNewsRow {
+  slug: string;
   external_id: string;
   dedupe_key: string;
   source_id: string | null;
@@ -66,6 +69,13 @@ interface SupabaseNewsRow {
   category: string | null;
   is_featured: boolean;
   is_popular: boolean;
+}
+
+interface SupabaseErrorResponse {
+  code?: string;
+  message?: string;
+  details?: string;
+  hint?: string;
 }
 
 function nonEmptyStringOrNull(value: string | null | undefined): string | null {
@@ -211,6 +221,13 @@ function createDedupeKey(item: NewsItem): string {
   return shortHash(primaryKey, 40);
 }
 
+function buildSupabaseSlug(item: NewsItem): string {
+  const normalizedTitle = nonEmptyStringOrNull(item.title) ?? "news";
+  const titleSlug = slugify(normalizedTitle, 64);
+  const stableSuffix = shortHash(item.id, 8);
+  return `${titleSlug}-${stableSuffix}`;
+}
+
 function parseTimestampOrZero(value: string): number {
   const parsed = new Date(value).getTime();
   if (Number.isNaN(parsed)) {
@@ -284,6 +301,7 @@ function mapNewsItemToRow(item: NewsItem, photos: PhotoAsset[]): SupabaseNewsRow
     nonEmptyStringOrNull(item.content);
 
   return {
+    slug: buildSupabaseSlug(item),
     external_id: item.id,
     dedupe_key: createDedupeKey(item),
     source_id: nonEmptyStringOrNull(item.source_id),
@@ -439,9 +457,43 @@ function buildUpsertHeaders(config: SupabaseSyncConfig): Record<string, string> 
     Authorization: `Bearer ${config.serviceRoleKey}`,
     "Content-Type": "application/json",
     Accept: "application/json",
-    Prefer: "resolution=merge-duplicates,return=minimal",
+    Prefer: "resolution=merge-duplicates,return=minimal,missing=default",
     "Content-Profile": config.schema,
   };
+}
+
+function truncateText(value: string, maxChars: number): string {
+  if (value.length <= maxChars) {
+    return value;
+  }
+
+  return `${value.slice(0, maxChars)}...`;
+}
+
+function formatSupabaseErrorResponse(error: SupabaseErrorResponse): string {
+  const parts: string[] = [];
+
+  const code = nonEmptyStringOrNull(error.code);
+  if (code) {
+    parts.push(`code=${code}`);
+  }
+
+  const message = nonEmptyStringOrNull(error.message);
+  if (message) {
+    parts.push(message);
+  }
+
+  const details = nonEmptyStringOrNull(error.details);
+  if (details) {
+    parts.push(`details=${truncateText(details, MAX_ERROR_DETAILS_CHARS)}`);
+  }
+
+  const hint = nonEmptyStringOrNull(error.hint);
+  if (hint) {
+    parts.push(`hint=${truncateText(hint, MAX_ERROR_DETAILS_CHARS)}`);
+  }
+
+  return parts.join("; ");
 }
 
 async function responseBodyPreview(response: Response): Promise<string> {
@@ -450,9 +502,17 @@ async function responseBodyPreview(response: Response): Promise<string> {
     return "";
   }
 
-  return body.length > MAX_ERROR_BODY_CHARS
-    ? `${body.slice(0, MAX_ERROR_BODY_CHARS)}...`
-    : body;
+  try {
+    const parsed = JSON.parse(body) as SupabaseErrorResponse;
+    const formatted = formatSupabaseErrorResponse(parsed);
+    if (formatted) {
+      return formatted;
+    }
+  } catch {
+    // Keep raw body fallback below when the error payload is not JSON.
+  }
+
+  return truncateText(body, MAX_ERROR_BODY_CHARS);
 }
 
 function splitIntoBatches<T>(items: T[], batchSize: number): T[][] {
@@ -518,7 +578,14 @@ export async function syncNewsToSupabase(
   const sourceFileAbs = await resolveNewsInputFile(scope, dataDirAbs);
   const rawItems = await readJsonFile<unknown>(sourceFileAbs);
   const selectedItems = parseNewsItems(rawItems);
-  const uniqueItems = dedupeNewsItems(selectedItems);
+  const excludedIdsPath = path.join(dataDirAbs, "supabase_excluded_ids.json");
+  const excludedIds = new Set(await listSupabaseExcludedItemIds(excludedIdsPath));
+  const filteredItems =
+    excludedIds.size > 0
+      ? selectedItems.filter((item) => !excludedIds.has(item.id))
+      : selectedItems;
+  const removedByExclusion = Math.max(selectedItems.length - filteredItems.length, 0);
+  const uniqueItems = dedupeNewsItems(filteredItems);
   const rows: SupabaseNewsRow[] = [];
   let removedBrokenPhotoRefs = 0;
   for (const item of uniqueItems) {
@@ -535,8 +602,15 @@ export async function syncNewsToSupabase(
     );
   }
 
+  if (removedByExclusion > 0) {
+    log(
+      `Supabase sync skipped ${removedByExclusion} excluded item(s) from ${toWorkspaceRelativePath(excludedIdsPath)}`,
+      verbose,
+    );
+  }
+
   log(
-    `Preparing Supabase sync: selected=${selectedItems.length}, unique=${rows.length}, scope=${scope}`,
+    `Preparing Supabase sync: selected=${filteredItems.length}, unique=${rows.length}, scope=${scope}`,
     verbose,
   );
 
@@ -547,7 +621,7 @@ export async function syncNewsToSupabase(
     ok: true,
     scope,
     source_file: toWorkspaceRelativePath(sourceFileAbs),
-    selected_items: selectedItems.length,
+    selected_items: filteredItems.length,
     unique_items: uniqueItems.length,
     submitted_rows: submittedRows,
   };

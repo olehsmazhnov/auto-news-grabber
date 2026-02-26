@@ -498,6 +498,28 @@ a {
   display: flex;
   flex-direction: column;
   min-height: 100%;
+  position: relative;
+}
+
+.card-delete-button {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(0, 0, 0, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 253, 249, 0.92);
+  color: #8d1f16;
+  font-size: 1.1rem;
+  line-height: 1;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.card-delete-button:hover {
+  background: #fff2ef;
 }
 
 .card-image {
@@ -608,6 +630,110 @@ h3 {
 .posts-title {
   margin: 0 0 8px;
   font-size: 1.05rem;
+}
+
+.delete-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(20, 14, 7, 0.48);
+  display: grid;
+  place-items: center;
+  padding: 18px;
+}
+
+.delete-modal {
+  width: min(560px, 100%);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.delete-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.delete-modal-head h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.delete-modal-close {
+  border: 1px solid var(--line);
+  background: #fff9f1;
+  color: var(--accent);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.delete-modal-close:hover:not(:disabled) {
+  background: #feefdb;
+}
+
+.delete-modal-body {
+  padding: 14px;
+  display: grid;
+  gap: 8px;
+}
+
+.delete-modal-error {
+  color: var(--fail-text);
+}
+
+.delete-modal-actions {
+  padding: 0 14px 14px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.delete-modal-cancel {
+  border: 1px solid var(--line);
+  background: #fffdf9;
+  color: var(--text);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.delete-modal-cancel:hover:not(:disabled) {
+  background: #f9f0e2;
+}
+
+.delete-modal-confirm {
+  border: 1px solid #8d1f16;
+  background: linear-gradient(180deg, #b73b30 0%, #8d1f16 100%);
+  color: #fff;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.delete-modal-confirm:hover:not(:disabled) {
+  background: linear-gradient(180deg, #ca473b 0%, #9e261d 100%);
+}
+
+.delete-modal-confirm:disabled,
+.delete-modal-cancel:disabled,
+.delete-modal-close:disabled,
+.card-delete-button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
 }
 
 @media (max-width: 720px) {

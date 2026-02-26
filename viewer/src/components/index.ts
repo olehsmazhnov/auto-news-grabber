@@ -1,4 +1,5 @@
 export { DailyHealth } from "./DailyHealth";
+export { DeletePostModal } from "./DeletePostModal";
 export { DayFilter } from "./DayFilter";
 export { FeaturedCard } from "./FeaturedCard";
 export { Header } from "./Header";

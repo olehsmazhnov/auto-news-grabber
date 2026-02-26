@@ -7,13 +7,28 @@ type NewsCardProps = {
     item: NewsItem;
     expandedItemIds: Set<string>;
     onToggleExpanded: (itemId: string) => void;
+    onRequestDelete: (item: NewsItem) => void;
 };
 
-export function NewsCard({ item, expandedItemIds, onToggleExpanded }: NewsCardProps): JSX.Element {
+export function NewsCard({
+    item,
+    expandedItemIds,
+    onToggleExpanded,
+    onRequestDelete,
+}: NewsCardProps): JSX.Element {
     const cardData = buildCardRenderData(item, expandedItemIds);
 
     return (
         <article className="card">
+            <button
+                type="button"
+                className="card-delete-button"
+                aria-label={`Delete post ${item.title}`}
+                title="Delete post"
+                onClick={() => onRequestDelete(item)}
+            >
+                x
+            </button>
             {cardData.image ? (
                 <img className="card-image" src={cardData.image} alt={item.title} loading="lazy" />
             ) : null}

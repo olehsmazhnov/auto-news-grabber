@@ -4,6 +4,11 @@ import * as http from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { ScrapeProgressTracker } from "./modules/scrape-progress.js";
 import { runScrapePipeline } from "./modules/scrape-runner.js";
+import {
+  addSupabaseExcludedItemId,
+  assertValidNewsItemId,
+  listSupabaseExcludedItemIds,
+} from "./modules/supabase-excluded-items.js";
 import { parseSupabaseSyncScope, syncNewsToSupabase } from "./modules/supabase-sync.js";
 import { loadEnvFromFile } from "./utils/env.js";
 
@@ -184,6 +189,52 @@ async function handleSupabaseSync(req: IncomingMessage, res: ServerResponse): Pr
   }
 }
 
+async function handleSupabaseExcludedItems(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  const method = req.method ?? "GET";
+
+  if (method === "GET") {
+    try {
+      const ids = await listSupabaseExcludedItemIds();
+      sendJson(res, 200, {
+        ok: true,
+        ids,
+      });
+    } catch (error) {
+      sendJson(res, 500, { ok: false, error: toErrorMessage(error) });
+    }
+    return;
+  }
+
+  if (method !== "POST") {
+    sendJson(res, 405, { ok: false, error: "Method not allowed" });
+    return;
+  }
+
+  try {
+    const payload = await readJsonBody(req, MAX_JSON_BODY_BYTES);
+    let itemId: string;
+    try {
+      itemId = assertValidNewsItemId(payload.id);
+    } catch (error) {
+      throw new BadRequestError(toErrorMessage(error));
+    }
+
+    const result = await addSupabaseExcludedItemId(itemId);
+    sendJson(res, 200, {
+      ok: true,
+      id: itemId,
+      added: result.added,
+      ids: result.ids,
+    });
+  } catch (error) {
+    const statusCode = isBadRequestError(error) ? 400 : 500;
+    sendJson(res, statusCode, { ok: false, error: toErrorMessage(error) });
+  }
+}
+
 async function handleScrapeRun(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const method = req.method ?? "GET";
   if (method !== "POST") {
@@ -260,6 +311,11 @@ async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
 
   if (pathname === "/api/supabase/sync") {
     await handleSupabaseSync(req, res);
+    return;
+  }
+
+  if (pathname === "/api/supabase/excluded-items") {
+    await handleSupabaseExcludedItems(req, res);
     return;
   }
 

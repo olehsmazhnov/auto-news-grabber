@@ -7,6 +7,8 @@ import type {
   RunSummary,
   ScrapeRunResponse,
   ScrapeStatusSnapshot,
+  SupabaseExcludedItemsResponse,
+  SupabaseExcludeItemResponse,
   SupabaseSyncResponse,
 } from "./types";
 import { SCRAPE_STATUS_POLL_INTERVAL_MS } from "./constants";
@@ -34,17 +36,47 @@ import {
   FeaturedCard,
   StatusGrid,
   DailyHealth,
+  DeletePostModal,
   NewsCard,
 } from "./components";
 
+function toExcludedIds(
+  payload: SupabaseExcludedItemsResponse | SupabaseExcludeItemResponse | null,
+): string[] {
+  if (!payload || payload.ok !== true || !Array.isArray(payload.ids)) {
+    return [];
+  }
+
+  const unique = new Set<string>();
+  for (const id of payload.ids) {
+    if (typeof id === "string" && id.trim()) {
+      unique.add(id.trim());
+    }
+  }
+
+  return [...unique];
+}
+
+function filterExcludedNewsItems(items: NewsItem[], excludedItemIds: Set<string>): NewsItem[] {
+  if (excludedItemIds.size === 0) {
+    return items;
+  }
+
+  return items.filter((item) => !excludedItemIds.has(item.id));
+}
+
 export function App(): JSX.Element {
   const [items, setItems] = React.useState<NewsItem[]>([]);
+  const [excludedItemIds, setExcludedItemIds] = React.useState<Set<string>>(new Set());
   const [latestRun, setLatestRun] = React.useState<RunSummary | null>(null);
   const [recentRuns, setRecentRuns] = React.useState<RunSummary[]>([]);
   const [dailyHealth, setDailyHealth] = React.useState<DailyHealthReport[]>([]);
   const [selectedDayKey, setSelectedDayKey] = React.useState<string | null>(null);
   const [error, setError] = React.useState("");
   const [expandedItemIds, setExpandedItemIds] = React.useState<Set<string>>(new Set());
+  const [deleteTargetItem, setDeleteTargetItem] = React.useState<NewsItem | null>(null);
+  const [deletePostState, setDeletePostState] = React.useState<"idle" | "saving" | "error">("idle");
+  const [deletePostError, setDeletePostError] = React.useState("");
   const [supabaseSyncState, setSupabaseSyncState] = React.useState<"idle" | "saving" | "success" | "error">("idle");
   const [supabaseSyncMessage, setSupabaseSyncMessage] = React.useState("");
   const [scrapeRunState, setScrapeRunState] = React.useState<"idle" | "running" | "success" | "error">("idle");
@@ -63,6 +95,21 @@ export function App(): JSX.Element {
       return next;
     });
   }, []);
+
+  const openDeleteModal = React.useCallback((item: NewsItem): void => {
+    setDeleteTargetItem(item);
+    setDeletePostError("");
+    setDeletePostState("idle");
+  }, []);
+
+  const closeDeleteModal = React.useCallback((): void => {
+    if (deletePostState === "saving") {
+      return;
+    }
+    setDeleteTargetItem(null);
+    setDeletePostError("");
+    setDeletePostState("idle");
+  }, [deletePostState]);
 
   const clearScrapeStatusPolling = React.useCallback((): void => {
     if (scrapeStatusPollRef.current === null) {
@@ -113,14 +160,22 @@ export function App(): JSX.Element {
         throw new Error(`HTTP ${newsResponse.status}`);
       }
 
-      const [newsData, latestRunData, runHistoryData, dailyHealthData] = await Promise.all([
+      const [newsData, latestRunData, runHistoryData, dailyHealthData, excludedItemsData] = await Promise.all([
         newsResponse.json() as Promise<NewsItem[]>,
         fetchJsonOrNull<RunSummary>(`/data/latest_run.json?t=${Date.now()}`),
         fetchJsonOrNull<RunHistorySnapshot>(`/data/run_history.json?t=${Date.now()}`),
         fetchJsonOrNull<DailyHealthSnapshot>(`/data/daily_health.json?t=${Date.now()}`),
+        fetchJsonOrNull<SupabaseExcludedItemsResponse>(`/api/supabase/excluded-items?t=${Date.now()}`),
       ]);
 
-      setItems(Array.isArray(newsData) ? sortNewsNewestFirst(newsData) : []);
+      const excludedIds = toExcludedIds(excludedItemsData);
+      const excludedIdSet = new Set(excludedIds);
+      const nextItems = Array.isArray(newsData)
+        ? sortNewsNewestFirst(filterExcludedNewsItems(newsData, excludedIdSet))
+        : [];
+
+      setExcludedItemIds(excludedIdSet);
+      setItems(nextItems);
       setLatestRun(latestRunData);
       setRecentRuns(Array.isArray(runHistoryData?.runs) ? runHistoryData.runs.slice(0, 10) : []);
       setDailyHealth(Array.isArray(dailyHealthData?.days) ? dailyHealthData.days.slice(0, 7) : []);
@@ -164,6 +219,46 @@ export function App(): JSX.Element {
       setSupabaseSyncMessage(`Supabase sync failed: ${String(syncError)}`);
     }
   }, []);
+
+  const deletePostFromSupabaseSync = React.useCallback(
+    async (item: NewsItem): Promise<void> => {
+      setDeletePostState("saving");
+      setDeletePostError("");
+
+      try {
+        const response = await fetch("/api/supabase/excluded-items", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json; charset=utf-8",
+          },
+          body: JSON.stringify({ id: item.id }),
+        });
+
+        let payload: SupabaseExcludeItemResponse | null = null;
+        try {
+          payload = (await response.json()) as SupabaseExcludeItemResponse;
+        } catch {
+          payload = null;
+        }
+
+        if (!response.ok || !payload?.ok) {
+          const details = payload && !payload.ok && payload.error ? `: ${payload.error}` : "";
+          throw new Error(`HTTP ${response.status}${details}`);
+        }
+
+        const nextExcludedIds = new Set(toExcludedIds(payload));
+        setExcludedItemIds(nextExcludedIds);
+        setItems((prev) => filterExcludedNewsItems(prev, nextExcludedIds));
+        setDeleteTargetItem(null);
+        setDeletePostState("idle");
+        setDeletePostError("");
+      } catch (deleteError) {
+        setDeletePostState("error");
+        setDeletePostError(`Delete failed: ${String(deleteError)}`);
+      }
+    },
+    [],
+  );
 
   const runNewScrape = React.useCallback(async (): Promise<void> => {
     setScrapeRunState("running");
@@ -387,68 +482,85 @@ export function App(): JSX.Element {
   );
 
   return (
-    <main className="page">
-      <Header
-        scrapeIsRunning={scrapeIsRunning}
-        scrapeProgressPercent={scrapeProgressPercent}
-        scrapeRunState={scrapeRunState}
-        scrapeRunMessage={scrapeRunMessage}
-        scrapeProgress={scrapeProgress}
-        supabaseSyncState={supabaseSyncState}
-        supabaseSyncMessage={supabaseSyncMessage}
-        onRunScrape={() => {
-          void runNewScrape();
-        }}
-        onSyncToSupabase={() => {
-          void syncLatestRunToSupabase();
-        }}
-      />
-
-      {error ? <div className="empty">{error}</div> : null}
-
-      {featuredTodayItem && featuredCardData ? (
-        <FeaturedCard
-          item={featuredTodayItem}
-          cardData={featuredCardData}
-          onToggleExpanded={toggleExpanded}
+    <>
+      <main className="page">
+        <Header
+          scrapeIsRunning={scrapeIsRunning}
+          scrapeProgressPercent={scrapeProgressPercent}
+          scrapeRunState={scrapeRunState}
+          scrapeRunMessage={scrapeRunMessage}
+          scrapeProgress={scrapeProgress}
+          supabaseSyncState={supabaseSyncState}
+          supabaseSyncMessage={supabaseSyncMessage}
+          onRunScrape={() => {
+            void runNewScrape();
+          }}
+          onSyncToSupabase={() => {
+            void syncLatestRunToSupabase();
+          }}
         />
-      ) : null}
 
-      <StatusGrid
-        latestRun={latestRun}
-        latestTotals={latestTotals}
-        failedResources={failedResources}
-        recentRuns={recentRuns}
-        renderResourceRefs={renderResourceRefs}
-      />
+        {error ? <div className="empty">{error}</div> : null}
 
-      <DailyHealth dailyHealth={dailyHealth} renderResourceRefs={renderResourceRefs} />
-
-      {!error && items.length === 0 ? (
-        <div className="empty">No items yet. Run scrape first.</div>
-      ) : null}
-
-      {!error && items.length > 0 ? (
-        <>
-          <h2 className="posts-title">Posts</h2>
-          <DayFilter
-            options={dayFilterOptions}
-            selectedDayKey={selectedDayKey}
-            onSelectDay={setSelectedDayKey}
-          />
-        </>
-      ) : null}
-
-      <section className="grid">
-        {nonFeaturedItems.map((item) => (
-          <NewsCard
-            key={item.id}
-            item={item}
-            expandedItemIds={expandedItemIds}
+        {featuredTodayItem && featuredCardData ? (
+          <FeaturedCard
+            item={featuredTodayItem}
+            cardData={featuredCardData}
             onToggleExpanded={toggleExpanded}
+            onRequestDelete={openDeleteModal}
           />
-        ))}
-      </section>
-    </main>
+        ) : null}
+
+        <StatusGrid
+          latestRun={latestRun}
+          latestTotals={latestTotals}
+          failedResources={failedResources}
+          recentRuns={recentRuns}
+          renderResourceRefs={renderResourceRefs}
+        />
+
+        <DailyHealth dailyHealth={dailyHealth} renderResourceRefs={renderResourceRefs} />
+
+        {!error && items.length === 0 ? (
+          <div className="empty">No items yet. Run scrape first.</div>
+        ) : null}
+
+        {!error && items.length > 0 ? (
+          <>
+            <h2 className="posts-title">Posts</h2>
+            <p className="status-row muted">
+              Excluded from Supabase sync: {safeNumber(excludedItemIds.size)}
+            </p>
+            <DayFilter
+              options={dayFilterOptions}
+              selectedDayKey={selectedDayKey}
+              onSelectDay={setSelectedDayKey}
+            />
+          </>
+        ) : null}
+
+        <section className="grid">
+          {nonFeaturedItems.map((item) => (
+            <NewsCard
+              key={item.id}
+              item={item}
+              expandedItemIds={expandedItemIds}
+              onToggleExpanded={toggleExpanded}
+              onRequestDelete={openDeleteModal}
+            />
+          ))}
+        </section>
+      </main>
+
+      <DeletePostModal
+        item={deleteTargetItem}
+        isSaving={deletePostState === "saving"}
+        errorMessage={deletePostError}
+        onCancel={closeDeleteModal}
+        onConfirm={(item) => {
+          void deletePostFromSupabaseSync(item);
+        }}
+      />
+    </>
   );
 }

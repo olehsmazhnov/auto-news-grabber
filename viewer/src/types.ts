@@ -100,6 +100,28 @@ export type SupabaseSyncResponse =
         error?: string;
     };
 
+export type SupabaseExcludedItemsResponse =
+    | {
+        ok: true;
+        ids: string[];
+    }
+    | {
+        ok: false;
+        error?: string;
+    };
+
+export type SupabaseExcludeItemResponse =
+    | {
+        ok: true;
+        id: string;
+        added: boolean;
+        ids: string[];
+    }
+    | {
+        ok: false;
+        error?: string;
+    };
+
 export type ScrapeRunResponse =
     | {
         ok: true;

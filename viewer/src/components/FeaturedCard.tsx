@@ -6,13 +6,28 @@ type FeaturedCardProps = {
     item: NewsItem;
     cardData: CardRenderData;
     onToggleExpanded: (itemId: string) => void;
+    onRequestDelete: (item: NewsItem) => void;
 };
 
-export function FeaturedCard({ item, cardData, onToggleExpanded }: FeaturedCardProps): JSX.Element {
+export function FeaturedCard({
+    item,
+    cardData,
+    onToggleExpanded,
+    onRequestDelete,
+}: FeaturedCardProps): JSX.Element {
     return (
         <section className="featured-section">
             <p className="featured-label">Top pick for today</p>
             <article className="card featured-card">
+                <button
+                    type="button"
+                    className="card-delete-button"
+                    aria-label={`Delete post ${item.title}`}
+                    title="Delete post"
+                    onClick={() => onRequestDelete(item)}
+                >
+                    x
+                </button>
                 {cardData.image ? (
                     <img className="card-image" src={cardData.image} alt={item.title} loading="lazy" />
                 ) : null}
